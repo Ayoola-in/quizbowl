@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Quiz Bowl Management System
 
 A professional, single-device web application for managing university engineering department quiz competitions.
@@ -40,3 +41,6 @@ The application uses a modular Repository/Service pattern mapped to `window.Quiz
 - `Data`: Wraps `localStorage` providing a database-like API (`questions-db.js`). This layer can be swapped out for Supabase or a SQL backend later.
 - `Services`: Business logic (scoring, stats).
 - `Views`: UI rendering logic.
+=======
+# quizbowl
+>>>>>>> db258ffca8f1b390b73a07c96e5d8b73443c2c31
