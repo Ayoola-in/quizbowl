@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QuizBowl - Public Display</title>
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- CSS -->
+    <link rel="stylesheet" href="css/variables.css">
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/components.css">
+    
+    <style>
+        body {
+            background-color: var(--bg-main);
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+        .public-header {
+            background-color: var(--color-primary);
+            color: var(--text-inverse);
+            padding: var(--spacing-lg) var(--spacing-xl);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .public-main {
+            flex: 1;
+            padding: var(--spacing-xl);
+            max-width: 1200px;
+            margin: 0 auto;
+            width: 100%;
+        }
+        .search-container {
+            margin-bottom: var(--spacing-xl);
+            position: relative;
+        }
+        .search-input {
+            width: 100%;
+            padding: var(--spacing-md);
+            font-size: 1.25rem;
+            border: 2px solid var(--border-color);
+            border-radius: var(--border-radius-lg);
+            box-shadow: var(--shadow-sm);
+        }
+        .search-results {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: var(--bg-surface);
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow-lg);
+            margin-top: 0.5rem;
+            max-height: 400px;
+            overflow-y: auto;
+            z-index: 100;
+            display: none;
+        }
+        .search-result-item {
+            padding: var(--spacing-md);
+            border-bottom: 1px solid var(--border-color);
+            cursor: pointer;
+        }
+        .search-result-item:hover {
+            background: var(--bg-main);
+        }
+        .question-display {
+            background: var(--bg-surface);
+            padding: var(--spacing-xl);
+            border-radius: var(--border-radius-lg);
+            box-shadow: var(--shadow-md);
+            border: 1px solid var(--border-color);
+            display: none;
+            font-size: 1.5rem;
+        }
+        .options-grid {
+            margin-top: var(--spacing-lg);
+            display: grid;
+            gap: var(--spacing-md);
+        }
+        .option-card {
+            padding: var(--spacing-md);
+            border: 2px solid var(--border-color);
+            border-radius: var(--border-radius);
+            background: var(--bg-main);
+        }
+        .fullscreen-btn {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: var(--border-radius);
+            cursor: pointer;
+        }
+        .fullscreen-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+    </style>
+
+    <!-- MathJax for rendering Mathematical Expressions -->
+    <script>
+        window.MathJax = {
+            tex: { inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$', '$$'], ['\\[', '\\]']] },
+            svg: { fontCache: 'global' }
+        };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+</head>
+<body>
+
+    <header class="public-header">
+        <h1>⚡ QuizBowl Public Display</h1>
+        <button id="btn-fullscreen" class="fullscreen-btn">Toggle Fullscreen</button>
+    </header>
+
+    <main class="public-main">
+        <div class="search-container">
+            <input type="text" id="public-search" class="search-input" placeholder="Search questions by ID or keyword..." autocomplete="off">
+            <div id="search-results" class="search-results"></div>
+        </div>
+
+        <div id="question-display" class="question-display">
+            <div id="qd-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; border-bottom: 2px solid var(--border-color); padding-bottom: 1rem;">
+                <span id="qd-id" style="font-weight: bold; color: var(--color-primary);"></span>
+                <span id="qd-category" style="font-size: 1rem; color: var(--text-secondary);"></span>
+                <span id="qd-marks" style="font-size: 1rem; font-weight: 500; background: var(--bg-main); padding: 4px 8px; border-radius: 4px;"></span>
+            </div>
+            <div id="qd-body" style="line-height: 1.6; font-size: 2rem; margin-bottom: 2rem;"></div>
+            <div id="qd-options" class="options-grid"></div>
+        </div>
+    </main>
+
+    <!-- Application Core & Dependencies -->
+    <script src="js/app.js"></script>
+    <script src="js/data/storage.js"></script>
+    <script src="js/data/questions-db.js"></script>
+    <script src="js/services/question-service.js"></script>
+    <script src="js/utils/search.js"></script>
+
+    <!-- Public Display Logic -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const searchInput = document.getElementById('public-search');
+            const searchResults = document.getElementById('search-results');
+            const display = document.getElementById('question-display');
+            const btnFullscreen = document.getElementById('btn-fullscreen');
+
+            let allQuestions = window.QuizBowl.Services.QuestionService.getAllQuestions();
+
+            // Toggle fullscreen
+            btnFullscreen.addEventListener('click', () => {
+                if (!document.fullscreenElement) {
+                    document.documentElement.requestFullscreen().catch(err => console.log(err));
+                } else {
+                    document.exitFullscreen().catch(err => console.log(err));
+                }
+            });
+
+            // Focus search with Ctrl+K is already handled by app.js for 'global-search', 
+            // but we can add one for 'public-search'
+            document.addEventListener('keydown', (e) => {
+                if (e.ctrlKey && e.key === 'k') {
+                    e.preventDefault();
+                    searchInput.focus();
+                }
+            });
+
+            searchInput.addEventListener('input', (e) => {
+                const query = e.target.value.trim();
+                if (query.length < 1) {
+                    searchResults.style.display = 'none';
+                    return;
+                }
+
+                // If exact ID matches
+                const exactMatch = window.QuizBowl.Services.QuestionService.getQuestion(query);
+                
+                let filtered = window.QuizBowl.Utils.Search.searchQuestions(query, allQuestions);
+                
+                // If the user types a perfect ID, make sure it's at the top
+                if (exactMatch && !filtered.find(q => q.id === exactMatch.id)) {
+                    filtered.unshift(exactMatch);
+                }
+
+                if (filtered.length > 0) {
+                    // Cap results at 10 for performance
+                    const limited = filtered.slice(0, 10);
+                    searchResults.innerHTML = limited.map(q => `
+                        <div class="search-result-item" data-id="${q.id}">
+                            <strong>${q.id}</strong> - <span class="badge badge-${q.status}">${q.status}</span> ${q.category} 
+                            <div style="font-size: 0.9em; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 4px;">
+                                ${q.question.replace(/<[^>]+>/g, ' ')}
+                            </div>
+                        </div>
+                    `).join('');
+                    searchResults.style.display = 'block';
+                } else {
+                    searchResults.innerHTML = '<div style="padding: 1rem; color: var(--text-muted);">No questions found</div>';
+                    searchResults.style.display = 'block';
+                }
+            });
+
+            searchResults.addEventListener('click', (e) => {
+                const item = e.target.closest('.search-result-item');
+                if (item) {
+                    const qId = item.getAttribute('data-id');
+                    displayQuestion(qId);
+                    searchResults.style.display = 'none';
+                    searchInput.value = '';
+                    searchInput.blur();
+                }
+            });
+
+            // Hide results when clicking outside
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('.search-container')) {
+                    searchResults.style.display = 'none';
+                }
+            });
+
+            function displayQuestion(id) {
+                const q = window.QuizBowl.Services.QuestionService.getQuestion(id);
+                if (!q) return;
+
+                document.getElementById('qd-id').textContent = 'Question ' + q.id;
+                document.getElementById('qd-category').textContent = q.category;
+                document.getElementById('qd-marks').textContent = q.marks + ' pts';
+                
+                document.getElementById('qd-body').innerHTML = q.question;
+
+                const optionsContainer = document.getElementById('qd-options');
+                if (q.type === 'mcq' && q.options) {
+                    optionsContainer.innerHTML = Object.entries(q.options).map(([key, val]) => `
+                        <div class="option-card">
+                            <strong style="color: var(--color-primary);">${key}:</strong> ${val}
+                        </div>
+                    `).join('');
+                } else {
+                    optionsContainer.innerHTML = '';
+                }
+
+                display.style.display = 'block';
+
+                if (window.MathJax) {
+                    MathJax.typesetPromise([display]).catch(err => console.log(err));
+                }
+            }
+        });
+    </script>
+</body>
+</html>
