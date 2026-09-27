@@ -11,6 +11,10 @@
             const stats = QuestionService.getDashboardStats();
             const teams = TeamService.getAllTeams();
             
+            // Calculate max score for bar graph
+            const maxScore = teams.length > 0 ? Math.max(...teams.map(t => t.score)) : 1;
+            const safeMaxScore = maxScore > 0 ? maxScore : 1; // prevent division by zero
+            
             // Build recent activity (mocked until history is fully implemented)
             const recentActivityHTML = `<p class="text-muted">No recent activity.</p>`;
 
@@ -48,12 +52,24 @@
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    ${teams.map(t => `
+                                    ${teams.map(t => {
+                                        const width = Math.max(0, (t.score / safeMaxScore) * 100);
+                                        return `
                                         <tr style="border-bottom: 1px solid var(--border-color);">
-                                            <td style="padding: 0.75rem 0; font-weight: 500;">${t.name}</td>
-                                            <td style="padding: 0.75rem 0; color: var(--color-accent); font-weight: 700;">${t.score}</td>
+                                            <td style="padding: 0.75rem 0; font-weight: 500; display: flex; align-items: center; gap: 0.5rem;">
+                                                <div style="width: 12px; height: 12px; border-radius: 50%; background-color: ${t.color || '#3b82f6'};"></div>
+                                                ${t.name}
+                                            </td>
+                                            <td style="padding: 0.75rem 0;">
+                                                <div style="display: flex; align-items: center; gap: 1rem; width: 100%;">
+                                                    <div style="flex: 1; height: 12px; background: var(--bg-main); border-radius: 6px; overflow: hidden;">
+                                                        <div style="width: ${width}%; height: 100%; background-color: ${t.color || '#3b82f6'}; transition: width 0.3s ease;"></div>
+                                                    </div>
+                                                    <span style="color: var(--color-accent); font-weight: 700; min-width: 40px; text-align: right;">${t.score}</span>
+                                                </div>
+                                            </td>
                                         </tr>
-                                    `).join('') || `<tr><td colspan="2" style="padding: 1rem 0; color: var(--text-muted);">No teams registered.</td></tr>`}
+                                    `}).join('') || `<tr><td colspan="2" style="padding: 1rem 0; color: var(--text-muted);">No teams registered.</td></tr>`}
                                 </tbody>
                             </table>
                         </div>

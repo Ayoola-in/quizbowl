@@ -16,10 +16,7 @@
 
                     <div class="form-container">
                         <form id="add-question-form">
-                            <div class="form-group">
-                                <label for="q-id">Question ID</label>
-                                <input type="text" id="q-id" class="form-control" required placeholder="e.g., Q006">
-                            </div>
+                            <!-- ID is now auto-generated on save -->
                             
                             <div class="form-group">
                                 <label for="q-type">Question Type</label>
@@ -68,6 +65,8 @@
             const form = document.getElementById('add-question-form');
             const typeSelect = document.getElementById('q-type');
             const dynamicContainer = document.getElementById('dynamic-options-container');
+            const marksInput = document.getElementById('q-marks');
+            const settings = window.QuizBowl.Data.SettingsDB.getSettings();
 
             const renderDynamicFields = () => {
                 const type = typeSelect.value;
@@ -121,6 +120,12 @@
                 }
                 
                 dynamicContainer.innerHTML = fields;
+                
+                // Set default marks based on type
+                if (type === 'mcq') marksInput.value = settings.mcqMarks;
+                else if (type === 'calculation') marksInput.value = settings.calculationMarks;
+                else if (type === 'theory') marksInput.value = settings.theoryMarks;
+                else if (type === 'true_false') marksInput.value = settings.true_falseMarks;
             };
 
             typeSelect.addEventListener('change', renderDynamicFields);
@@ -132,7 +137,6 @@
                 try {
                     const type = typeSelect.value;
                     const question = {
-                        id: document.getElementById('q-id').value,
                         type: type,
                         category: document.getElementById('q-category').value,
                         topic: "", // simplified

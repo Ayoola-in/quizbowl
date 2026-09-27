@@ -13,9 +13,14 @@
                 <div class="questions-view">
                     <div class="questions-header">
                         <h1>Question Bank</h1>
-                        <button class="btn btn-primary" onclick="window.QuizBowl.Router.navigate('add-question')">
-                            + Add Question
-                        </button>
+                        <div>
+                            <button id="btn-delete-selected" class="btn" style="position: fixed; bottom: 2rem; right: 2rem; z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border-radius: 50px; padding: 1rem 2rem; background: var(--color-danger); color: white; display: none;" onclick="window.QuizBowl.Views.Questions.deleteSelected()">
+                                Delete Selected (<span id="delete-count">0</span>)
+                            </button>
+                            <button class="btn btn-primary" onclick="window.QuizBowl.Router.navigate('add-question')">
+                                + Add Question
+                            </button>
+                        </div>
                     </div>
 
                     <div class="filters-bar">
@@ -56,8 +61,9 @@
             
             const renderGrid = (data) => {
                 grid.innerHTML = data.map(q => `
-                    <div class="question-card" onclick="window.QuizBowl.Router.navigate('question/${q.id}')">
-                        <div class="qc-header">
+                    <div class="question-card" style="position: relative; cursor: pointer;" onclick="if(event.target.type !== 'checkbox') window.QuizBowl.Router.navigate('question/${q.id}')">
+                        <input type="checkbox" class="q-select-checkbox" data-id="${q.id}" style="position: absolute; top: 15px; right: 15px; transform: scale(1.5); cursor: pointer;" onclick="event.stopPropagation()" onchange="window.QuizBowl.Views.Questions.updateDeleteButton()">
+                        <div class="qc-header" style="padding-right: 30px;">
                             <span class="qc-id">${q.id}</span>
                             <span class="badge badge-${q.status}">${q.status}</span>
                         </div>
@@ -109,6 +115,44 @@
                         applyFilters();
                     }
                 });
+            }
+        },
+        
+        updateDeleteButton: function() {
+            const checkboxes = document.querySelectorAll('.q-select-checkbox:checked');
+            const btn = document.getElementById('btn-delete-selected');
+            const count = document.getElementById('delete-count');
+            
+            if (checkboxes.length > 0) {
+                btn.style.display = 'inline-block';
+                count.textContent = checkboxes.length;
+            } else {
+                btn.style.display = 'none';
+            }
+        },
+        
+        deleteSelected: function() {
+            const checkboxes = document.querySelectorAll('.q-select-checkbox:checked');
+            if (checkboxes.length === 0) return;
+            
+            if (confirm(`Are you sure you want to delete ${checkboxes.length} selected question(s)?`)) {
+                const QuestionService = window.QuizBowl.Services.QuestionService;
+                
+                // Track types affected for renumbering
+                const typesAffected = new Set();
+                
+                checkboxes.forEach(cb => {
+                    const id = cb.getAttribute('data-id');
+                    const q = QuestionService.getQuestion(id);
+                    if (q) typesAffected.add(q.type);
+                    QuestionService.deleteQuestion(id);
+                });
+                
+                // Renumber only affected types (or just run global migrate)
+                QuestionService.migrateIds();
+                
+                window.QuizBowl.Components.Toast.show(`${checkboxes.length} questions deleted`, 'success');
+                window.QuizBowl.Views.Questions.render(document.getElementById('view-container'));
             }
         }
     };

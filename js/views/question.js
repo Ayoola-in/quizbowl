@@ -28,13 +28,16 @@
 
             const html = `
                 <div class="question-detail-view" style="max-width: 900px; margin: 0 auto;">
-                    <div class="questions-header">
+                    <div class="questions-header" style="display: flex; justify-content: space-between; align-items: flex-start;">
                         <div>
                             <button class="btn" style="background: var(--bg-surface); border: 1px solid var(--border-color); margin-bottom: var(--spacing-md);" onclick="window.history.back()">← Back</button>
                             <h1 style="display: flex; align-items: center; gap: var(--spacing-sm);">
                                 Question ${question.id}
                                 <span class="badge badge-${question.status}">${question.status.toUpperCase()}</span>
                             </h1>
+                        </div>
+                        <div>
+                            <button class="btn btn-danger" id="btn-delete-question" style="background: var(--color-danger); color: white; border: none; padding: var(--spacing-sm) var(--spacing-md); border-radius: var(--border-radius); cursor: pointer;">Delete Question</button>
                         </div>
                     </div>
 
@@ -129,10 +132,22 @@
                 });
             } else {
                 document.getElementById('btn-reset-status').addEventListener('click', () => {
-                    if (confirm("Resetting will make this question available again, but will NOT subtract points from the team that answered it. Proceed?")) {
-                        window.QuizBowl.Data.QuestionsDB.resetStatus(question.id);
-                        window.QuizBowl.Components.Toast.show("Question status reset to available.", "info");
+                    if (confirm("Resetting will make this question available again and WILL subtract the previously awarded points from the team that answered it. Proceed?")) {
+                        window.QuizBowl.Services.ScoringService.resetScoreAndStatus(question.id);
+                        window.QuizBowl.Components.Toast.show("Question status and score reset to available.", "info");
                         window.QuizBowl.Views.QuestionDetail.render(container, id);
+                    }
+                });
+            }
+
+            // Bind delete event
+            const btnDelete = document.getElementById('btn-delete-question');
+            if (btnDelete) {
+                btnDelete.addEventListener('click', () => {
+                    if (confirm('Are you sure you want to delete this question? The remaining questions will be automatically renumbered.')) {
+                        window.QuizBowl.Services.QuestionService.deleteAndRenumber(question.id);
+                        window.QuizBowl.Components.Toast.show("Question deleted and others renumbered.", "success");
+                        window.QuizBowl.Router.navigate('questions');
                     }
                 });
             }

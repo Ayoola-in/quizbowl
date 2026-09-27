@@ -24,6 +24,21 @@
             return Storage.set(STORAGE_KEY, []);
         },
 
+        updateQuestionId: function(oldId, newId) {
+            let events = this.getAll();
+            let updated = false;
+            events.forEach(event => {
+                if (event.questionId === oldId) {
+                    event.questionId = newId;
+                    updated = true;
+                }
+            });
+            if (updated) {
+                return Storage.set(STORAGE_KEY, events);
+            }
+            return true;
+        },
+
         saveAll: function(history) {
             return Storage.set(STORAGE_KEY, history);
         }

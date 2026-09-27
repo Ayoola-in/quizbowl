@@ -35,6 +35,33 @@
             });
             
             return true;
+        },
+
+        resetScoreAndStatus: function(questionId) {
+            const question = QuestionDB.getById(questionId);
+            if (!question || question.status !== 'answered') return false;
+            
+            // Find history record for this question to know the exact marks awarded
+            const historyEvents = HistoryDB.getAll();
+            const eventIndex = historyEvents.findIndex(e => e.questionId === questionId);
+            
+            if (eventIndex !== -1) {
+                const event = historyEvents[eventIndex];
+                
+                // 1. Deduct the previously awarded marks from the team
+                if (event.teamId && event.marksAwarded) {
+                    TeamDB.updateScore(event.teamId, -event.marksAwarded);
+                }
+                
+                // 2. Remove history record
+                historyEvents.splice(eventIndex, 1);
+                HistoryDB.saveAll(historyEvents);
+            }
+            
+            // 3. Mark question as available
+            QuestionDB.resetStatus(questionId);
+            
+            return true;
         }
     };
 })();

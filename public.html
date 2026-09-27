@@ -1,20 +1,21 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>QuizBowl - Public Display</title>
-    
+
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    
+
     <!-- CSS -->
     <link rel="stylesheet" href="css/variables.css">
     <link rel="stylesheet" href="css/main.css">
     <link rel="stylesheet" href="css/components.css">
-    
+
     <style>
         body {
             background-color: var(--bg-main);
@@ -22,6 +23,7 @@
             flex-direction: column;
             min-height: 100vh;
         }
+
         .public-header {
             background-color: var(--color-primary);
             color: var(--text-inverse);
@@ -30,6 +32,7 @@
             align-items: center;
             justify-content: space-between;
         }
+
         .public-main {
             flex: 1;
             padding: var(--spacing-xl);
@@ -37,10 +40,12 @@
             margin: 0 auto;
             width: 100%;
         }
+
         .search-container {
             margin-bottom: var(--spacing-xl);
             position: relative;
         }
+
         .search-input {
             width: 100%;
             padding: var(--spacing-md);
@@ -49,6 +54,7 @@
             border-radius: var(--border-radius-lg);
             box-shadow: var(--shadow-sm);
         }
+
         .search-results {
             position: absolute;
             top: 100%;
@@ -57,21 +63,135 @@
             background: var(--bg-surface);
             border: 1px solid var(--border-color);
             border-radius: var(--border-radius);
-            box-shadow: var(--shadow-lg);
-            margin-top: 0.5rem;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
             max-height: 400px;
             overflow-y: auto;
             z-index: 100;
             display: none;
         }
+
         .search-result-item {
-            padding: var(--spacing-md);
+            padding: var(--spacing-md) var(--spacing-lg);
             border-bottom: 1px solid var(--border-color);
             cursor: pointer;
+            transition: background 0.2s;
         }
+
         .search-result-item:hover {
             background: var(--bg-main);
         }
+
+        /* Sidebar Styles */
+        .sidebar {
+            position: fixed;
+            top: 0;
+            left: -350px;
+            width: 300px;
+            height: 100vh;
+            background: var(--bg-surface);
+            box-shadow: 2px 0 10px rgba(0, 0, 0, 0.2);
+            transition: left 0.3s ease;
+            z-index: 1000;
+            padding: var(--spacing-xl);
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+        }
+
+        .sidebar.active {
+            left: 0;
+        }
+
+        .sidebar-toggle {
+            position: fixed;
+            top: 50%;
+            left: 0;
+            transform: translateY(-50%);
+            background: var(--color-primary);
+            color: #fff;
+            padding: 1rem 0.5rem;
+            border-radius: 0 8px 8px 0;
+            cursor: pointer;
+            z-index: 1001;
+            box-shadow: 2px 0 5px rgba(0, 0, 0, 0.2);
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            writing-mode: vertical-rl;
+            text-orientation: mixed;
+            transition: left 0.3s ease;
+        }
+
+        .sidebar-toggle.active {
+            left: 300px;
+        }
+
+        .available-q-badge {
+            display: inline-block;
+            background: var(--bg-main);
+            border: 1px solid var(--border-color);
+            padding: 0.5rem 1rem;
+            margin: 0.5rem;
+            border-radius: var(--border-radius);
+            font-weight: bold;
+            color: var(--color-primary);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .available-q-badge:hover {
+            background: var(--color-primary);
+            color: #fff;
+        }
+
+        /* Right Sidebar Styles */
+        .sidebar-right {
+            position: fixed;
+            top: 0;
+            right: -350px;
+            width: 300px;
+            height: 100vh;
+            background: var(--bg-surface);
+            box-shadow: -2px 0 10px rgba(0, 0, 0, 0.2);
+            transition: right 0.3s ease;
+            z-index: 1000;
+            padding: var(--spacing-xl);
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+        }
+
+        .sidebar-right.active {
+            right: 0;
+        }
+
+        .sidebar-right-toggle {
+            position: fixed;
+            top: 50%;
+            right: 0;
+            transform: translateY(-50%);
+            background: var(--color-success);
+            color: #fff;
+            padding: 1rem 0.5rem;
+            border-radius: 8px 0 0 8px;
+            cursor: pointer;
+            z-index: 1001;
+            box-shadow: -2px 0 5px rgba(0, 0, 0, 0.2);
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            writing-mode: vertical-rl;
+            text-orientation: mixed;
+            transition: right 0.3s ease;
+        }
+
+        .sidebar-right-toggle.active {
+            right: 300px;
+        }
+    </style>
+    <style>
         .question-display {
             background: var(--bg-surface);
             padding: var(--spacing-xl);
@@ -81,17 +201,20 @@
             display: none;
             font-size: 1.5rem;
         }
+
         .options-grid {
             margin-top: var(--spacing-lg);
             display: grid;
             gap: var(--spacing-md);
         }
+
         .option-card {
             padding: var(--spacing-md);
             border: 2px solid var(--border-color);
             border-radius: var(--border-radius);
             background: var(--bg-main);
         }
+
         .fullscreen-btn {
             background: rgba(255, 255, 255, 0.2);
             color: white;
@@ -100,8 +223,16 @@
             border-radius: var(--border-radius);
             cursor: pointer;
         }
+
         .fullscreen-btn:hover {
             background: rgba(255, 255, 255, 0.3);
+        }
+
+        .blurred {
+            filter: blur(8px);
+            pointer-events: none;
+            opacity: 0.7;
+            transition: all 0.3s ease;
         }
     </style>
 
@@ -114,42 +245,139 @@
     </script>
     <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
 </head>
+
 <body>
 
     <header class="public-header">
-        <h1>⚡ QuizBowl Public Display</h1>
+        <h1>QuizBowl Public Display</h1>
         <button id="btn-fullscreen" class="fullscreen-btn">Toggle Fullscreen</button>
     </header>
 
+    <div id="available-sidebar" class="sidebar">
+        <h2
+            style="margin-top: 0; margin-bottom: 1rem; color: var(--color-primary); border-bottom: 2px solid var(--border-color); padding-bottom: 0.5rem;">
+            Available Q's</h2>
+        <div style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 1rem;">
+            Type: <strong id="sidebar-type-label">Theory</strong>
+        </div>
+        <div id="sidebar-q-list" style="display: flex; flex-wrap: wrap;">
+            <!-- Badges go here -->
+        </div>
+    </div>
+    <div id="sidebar-toggle-btn" class="sidebar-toggle">
+        Available
+    </div>
+
+    <div id="answered-sidebar" class="sidebar-right">
+        <h2
+            style="margin-top: 0; margin-bottom: 1rem; color: var(--color-success); border-bottom: 2px solid var(--border-color); padding-bottom: 0.5rem;">
+            Answered Q's</h2>
+        <div style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 1rem;">
+            Type: <strong id="answered-type-label">Theory</strong>
+        </div>
+        <div id="answered-q-list" style="display: flex; flex-wrap: wrap;">
+            <!-- Badges go here -->
+        </div>
+    </div>
+    <div id="answered-toggle-btn" class="sidebar-right-toggle">
+        Answered
+    </div>
+
     <main class="public-main">
-        <div class="search-container">
-            <input type="text" id="public-search" class="search-input" placeholder="Search questions by ID or keyword..." autocomplete="off">
-            <div id="search-results" class="search-results"></div>
+        <div class="search-container"
+            style="display: flex; gap: var(--spacing-md); position: relative; align-items: center;">
+            <select id="public-type" class="search-input" style="flex: 0 0 200px;">
+                <option value="theory">Theory</option>
+                <option value="calculation">Calculation</option>
+                <option value="mcq">Multiple Choice</option>
+                <option value="true_false">True/False</option>
+            </select>
+            <div style="flex: 1;">
+                <input type="text" id="public-search" class="search-input"
+                    placeholder="Enter question number (e.g. 1) and press Enter..." autocomplete="off">
+            </div>
+            <button id="btn-search" class="btn btn-primary"
+                style="padding: var(--spacing-md) var(--spacing-lg); border-radius: var(--border-radius-lg);">Show
+                Question</button>
         </div>
 
         <div id="question-display" class="question-display">
-            <div id="qd-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; border-bottom: 2px solid var(--border-color); padding-bottom: 1rem;">
-                <span id="qd-id" style="font-weight: bold; color: var(--color-primary);"></span>
-                <span id="qd-category" style="font-size: 1rem; color: var(--text-secondary);"></span>
-                <span id="qd-marks" style="font-size: 1rem; font-weight: 500; background: var(--bg-main); padding: 4px 8px; border-radius: 4px;"></span>
+            <div id="qd-header"
+                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; border-bottom: 2px solid var(--border-color); padding-bottom: 1rem;">
+                <div>
+                    <span id="qd-id" style="font-weight: bold; color: var(--color-primary); font-size: 1.5rem;"></span>
+                    <span id="qd-category"
+                        style="font-size: 1rem; color: var(--text-secondary); margin-left: 1rem;"></span>
+                    <span id="qd-marks"
+                        style="font-size: 1rem; font-weight: 500; background: var(--bg-main); padding: 4px 8px; border-radius: 4px; margin-left: 1rem;"></span>
+                </div>
+                <div style="display: flex; gap: 1rem; align-items: center;">
+                    <button id="btn-toggle-answer" class="btn"
+                        style="background: #3b82f6; color: white; display: none; height: 100%; border-radius: var(--border-radius-lg); font-size: 1.2rem; font-weight: bold;">Show
+                        Answer</button>
+                    <div id="qd-timer"
+                        style="font-size: 3rem; font-weight: bold; color: var(--color-primary); background: var(--bg-main); padding: 0.5rem 1.5rem; border-radius: var(--border-radius-lg); border: 2px solid var(--border-color); display: none;">
+                        00
+                    </div>
+                    <button id="btn-cancel-display" class="btn"
+                        style="background: var(--color-danger); color: white; display: none; height: 100%; border-radius: var(--border-radius-lg); font-size: 1.2rem; font-weight: bold;">Cancel</button>
+                </div>
             </div>
             <div id="qd-body" style="line-height: 1.6; font-size: 2rem; margin-bottom: 2rem;"></div>
             <div id="qd-options" class="options-grid"></div>
+
+            <div id="qd-answer-section"
+                style="display: none; margin-top: 2rem; padding: 1.5rem; background: #d1fae5; border: 2px solid #10b981; border-radius: var(--border-radius-lg); color: #065f46;">
+                <h3 style="margin-top: 0; margin-bottom: 1rem;">Correct Answer:</h3>
+                <div id="qd-correct-answer" style="font-size: 2rem; font-weight: bold;"></div>
+            </div>
+
+            <div id="qd-scoring-controls"
+                style="display: none; margin-top: 3rem; padding-top: 2rem; border-top: 2px solid var(--border-color); flex-direction: column; align-items: center; gap: 1.5rem;">
+                <button id="btn-start-bonus"
+                    style="display: none; padding: 1rem 2rem; font-size: 1.5rem; font-weight: bold; background: var(--color-warning); color: #000; border: none; border-radius: var(--border-radius-lg); cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                    Start Bonus Time
+                </button>
+
+                <h3 style="margin: 0; color: var(--text-secondary); font-size: 1.5rem;">Who answered correctly?</h3>
+                <div id="team-buttons-container"
+                    style="display: flex; gap: 1rem; flex-wrap: wrap; justify-content: center;">
+                </div>
+            </div>
         </div>
     </main>
 
+    <!-- Celebration Overlay -->
+    <div id="celebration-overlay"
+        style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.85); z-index: 9999; justify-content: center; align-items: center; flex-direction: column; cursor: pointer;">
+        <h1 id="celebration-text"
+            style="color: #fff; font-size: 5rem; text-align: center; text-shadow: 0 4px 20px rgba(255,255,255,0.3); margin-bottom: 2rem;">
+        </h1>
+        <div id="celebration-leaderboard"
+            style="width: 80%; max-width: 800px; margin-bottom: 2rem; display: flex; flex-direction: column; gap: 1rem;">
+        </div>
+        <p style="color: #ccc; font-size: 1.5rem;">Click anywhere to continue</p>
+    </div>
+
     <!-- Application Core & Dependencies -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <script src="js/app.js"></script>
     <script src="js/data/storage.js"></script>
     <script src="js/data/questions-db.js"></script>
+    <script src="js/data/teams-db.js"></script>
+    <script src="js/data/history-db.js"></script>
+    <script src="js/data/settings-db.js"></script>
     <script src="js/services/question-service.js"></script>
+    <script src="js/services/team-service.js"></script>
+    <script src="js/services/scoring-service.js"></script>
     <script src="js/utils/search.js"></script>
 
     <!-- Public Display Logic -->
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const searchInput = document.getElementById('public-search');
-            const searchResults = document.getElementById('search-results');
+            const typeSelect = document.getElementById('public-type');
+            const btnSearch = document.getElementById('btn-search');
             const display = document.getElementById('question-display');
             const btnFullscreen = document.getElementById('btn-fullscreen');
 
@@ -164,8 +392,7 @@
                 }
             });
 
-            // Focus search with Ctrl+K is already handled by app.js for 'global-search', 
-            // but we can add one for 'public-search'
+            // Focus search with Ctrl+K
             document.addEventListener('keydown', (e) => {
                 if (e.ctrlKey && e.key === 'k') {
                     e.preventDefault();
@@ -173,68 +400,302 @@
                 }
             });
 
-            searchInput.addEventListener('input', (e) => {
-                const query = e.target.value.trim();
-                if (query.length < 1) {
-                    searchResults.style.display = 'none';
-                    return;
+            const TYPE_PREFIXES = {
+                'theory': 'THRY',
+                'calculation': 'CALC',
+                'mcq': 'MCQ',
+                'true_false': 'TF'
+            };
+
+            const sidebar = document.getElementById('available-sidebar');
+            const sidebarToggleBtn = document.getElementById('sidebar-toggle-btn');
+            const sidebarQList = document.getElementById('sidebar-q-list');
+            const sidebarTypeLabel = document.getElementById('sidebar-type-label');
+            const timerDisplay = document.getElementById('qd-timer');
+            const btnBonus = document.getElementById('btn-start-bonus');
+
+            let timerInterval = null;
+            let currentTimerVal = 0;
+
+            function stopTimer() {
+                if (timerInterval) clearInterval(timerInterval);
+                timerInterval = null;
+            }
+
+            function setBlurred(isBlurred) {
+                const body = document.getElementById('qd-body');
+                const options = document.getElementById('qd-options');
+                if (isBlurred) {
+                    body.classList.add('blurred');
+                    options.classList.add('blurred');
+                } else {
+                    body.classList.remove('blurred');
+                    options.classList.remove('blurred');
+                }
+            }
+
+            function formatTime(seconds) {
+                return seconds < 10 ? '0' + seconds : seconds;
+            }
+
+            function startTimer(duration, isBonus = false) {
+                stopTimer();
+                currentTimerVal = duration;
+                timerDisplay.textContent = formatTime(currentTimerVal);
+                timerDisplay.style.display = 'block';
+                timerDisplay.style.color = 'var(--color-primary)';
+
+                timerInterval = setInterval(() => {
+                    currentTimerVal--;
+                    if (currentTimerVal <= 0) {
+                        currentTimerVal = 0;
+                        stopTimer();
+                        timerDisplay.style.color = 'var(--color-danger)';
+
+                        if (!isBonus) {
+                            // Show bonus button if not answered yet
+                            const qId = btnBonus.getAttribute('data-qid');
+                            const q = window.QuizBowl.Services.QuestionService.getQuestion(qId);
+                            if (q && q.status !== 'answered') {
+                                btnBonus.style.display = 'inline-block';
+                                setBlurred(true);
+                            }
+                        } else {
+                            setBlurred(true);
+                        }
+                    } else if (currentTimerVal <= 5) {
+                        timerDisplay.style.color = 'var(--color-danger)';
+                    }
+
+                    timerDisplay.textContent = formatTime(currentTimerVal);
+                }, 1000);
+            }
+
+            btnBonus.addEventListener('click', () => {
+                const settings = window.QuizBowl.Data.SettingsDB.getSettings();
+                startTimer(settings.bonusTime, true);
+                btnBonus.style.display = 'none';
+                setBlurred(false);
+            });
+
+            const btnCancelDisplay = document.getElementById('btn-cancel-display');
+            btnCancelDisplay.addEventListener('click', () => {
+                stopTimer();
+                display.style.display = 'none';
+                document.querySelector('.search-container').style.display = 'flex';
+                searchInput.focus();
+            });
+
+            const btnToggleAnswer = document.getElementById('btn-toggle-answer');
+            const answerSection = document.getElementById('qd-answer-section');
+
+            btnToggleAnswer.addEventListener('click', () => {
+                if (answerSection.style.display === 'none') {
+                    answerSection.style.display = 'block';
+                    btnToggleAnswer.textContent = 'Hide Answer';
+                } else {
+                    answerSection.style.display = 'none';
+                    btnToggleAnswer.textContent = 'Show Answer';
+                }
+            });
+
+            sidebarToggleBtn.addEventListener('click', () => {
+                sidebar.classList.toggle('active');
+                sidebarToggleBtn.classList.toggle('active');
+                if (sidebar.classList.contains('active')) {
+                    updateSidebar();
+                }
+            });
+
+            function updateSidebar() {
+                // Populate Available Sidebar
+                const typeSelect = document.getElementById('public-type');
+                const currentType = typeSelect.value;
+                const typeText = typeSelect.options[typeSelect.selectedIndex].text;
+                sidebarTypeLabel.textContent = typeText;
+
+                const questions = window.QuizBowl.Services.QuestionService.getAllQuestions();
+                const availableQs = questions.filter(q => q.type === currentType && q.status === 'available');
+
+                if (availableQs.length === 0) {
+                    sidebarQList.innerHTML = '<p style="color: var(--text-muted); width: 100%;">No available questions in this category.</p>';
+                } else {
+                    sidebarQList.innerHTML = availableQs.map(q => {
+                        const numberOnly = q.id.replace(TYPE_PREFIXES[currentType], '');
+                        return `<div class="available-q-badge" data-id="${q.id}">${numberOnly}</div>`;
+                    }).join('');
                 }
 
-                // If exact ID matches
-                const exactMatch = window.QuizBowl.Services.QuestionService.getQuestion(query);
-                
-                let filtered = window.QuizBowl.Utils.Search.searchQuestions(query, allQuestions);
-                
-                // If the user types a perfect ID, make sure it's at the top
-                if (exactMatch && !filtered.find(q => q.id === exactMatch.id)) {
-                    filtered.unshift(exactMatch);
-                }
+                // Populate Answered Sidebar
+                const answeredSidebar = document.getElementById('answered-sidebar');
+                const answeredQList = document.getElementById('answered-q-list');
+                const answeredTypeLabel = document.getElementById('answered-type-label');
+                answeredTypeLabel.textContent = typeText;
+                const answeredQs = questions.filter(q => q.type === currentType && q.status === 'answered');
 
-                if (filtered.length > 0) {
-                    // Cap results at 10 for performance
-                    const limited = filtered.slice(0, 10);
-                    searchResults.innerHTML = limited.map(q => `
-                        <div class="search-result-item" data-id="${q.id}">
-                            <strong>${q.id}</strong> - <span class="badge badge-${q.status}">${q.status}</span> ${q.category} 
-                            <div style="font-size: 0.9em; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 4px;">
-                                ${q.question.replace(/<[^>]+>/g, ' ')}
+                if (answeredQs.length === 0) {
+                    answeredQList.innerHTML = '<p style="color: var(--text-muted); width: 100%;">No answered questions in this category.</p>';
+                } else {
+                    answeredQList.innerHTML = answeredQs.map(q => {
+                        const numberOnly = q.id.replace(TYPE_PREFIXES[currentType], '');
+                        const team = window.QuizBowl.Services.TeamService.getTeam(q.answeredBy);
+                        const teamColor = team ? team.color : '#666';
+                        const teamInitial = team ? team.name.charAt(0).toUpperCase() : '?';
+
+                        return `
+                        <div class="answered-q-item" style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0; border-bottom: 1px solid var(--border-color);">
+                            <div style="font-weight: bold; color: var(--text-primary); font-size: 1.1rem;">Q${numberOnly}</div>
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <div style="width: 24px; height: 24px; border-radius: 50%; background: ${teamColor}; color: white; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: bold;" title="${team ? team.name : 'Unknown'}">
+                                    ${teamInitial}
+                                </div>
                             </div>
                         </div>
-                    `).join('');
-                    searchResults.style.display = 'block';
-                } else {
-                    searchResults.innerHTML = '<div style="padding: 1rem; color: var(--text-muted);">No questions found</div>';
-                    searchResults.style.display = 'block';
+                        `;
+                    }).join('');
+                }
+            }
+
+            function showCelebrationLeaderboard(winnerId, marksAwarded) {
+                const teams = window.QuizBowl.Services.TeamService.getAllTeams();
+                const maxScore = teams.length > 0 ? Math.max(...teams.map(t => t.score)) : 1;
+                const safeMaxScore = maxScore > 0 ? maxScore : 1;
+
+                teams.sort((a, b) => b.score - a.score);
+
+                const container = document.getElementById('celebration-leaderboard');
+                container.innerHTML = '';
+
+                teams.forEach(t => {
+                    const isWinner = t.id === winnerId;
+                    const newScore = t.score;
+                    const oldScore = isWinner ? Math.max(0, newScore - marksAwarded) : newScore;
+
+                    const oldWidth = Math.max(0, (oldScore / safeMaxScore) * 100);
+                    const newWidth = Math.max(0, (newScore / safeMaxScore) * 100);
+
+                    const row = document.createElement('div');
+                    row.style.display = 'flex';
+                    row.style.alignItems = 'center';
+                    row.style.gap = '1rem';
+                    row.style.width = '100%';
+
+                    row.innerHTML = `
+                        <div style="color: white; font-size: 1.5rem; font-weight: bold; width: 150px; text-align: right; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">${t.name}</div>
+                        <div style="flex: 1; height: 30px; background: rgba(255,255,255,0.2); border-radius: 15px; overflow: hidden; position: relative;">
+                            <div class="bar-fill" style="width: ${oldWidth}%; height: 100%; background-color: ${t.color || '#3b82f6'}; transition: width 1s cubic-bezier(0.4, 0, 0.2, 1); border-radius: 15px;"></div>
+                        </div>
+                        <div style="color: var(--color-accent); font-size: 1.5rem; font-weight: bold; width: 60px;" class="score-text" data-score="${newScore}">${oldScore}</div>
+                    `;
+                    container.appendChild(row);
+
+                    if (isWinner) {
+                        setTimeout(() => {
+                            const fill = row.querySelector('.bar-fill');
+                            const scoreText = row.querySelector('.score-text');
+                            fill.style.width = `${newWidth}%`;
+
+                            let currentNumber = oldScore;
+                            const duration = 1000;
+                            const steps = 30;
+                            const increment = (newScore - oldScore) / steps;
+                            const stepTime = Math.abs(Math.floor(duration / steps));
+
+                            const timer = setInterval(() => {
+                                currentNumber += increment;
+                                if (currentNumber >= newScore) {
+                                    clearInterval(timer);
+                                    currentNumber = newScore;
+                                }
+                                scoreText.textContent = Math.floor(currentNumber);
+                            }, stepTime);
+                        }, 500);
+                    }
+                });
+            }
+
+            const answeredSidebar = document.getElementById('answered-sidebar');
+            const answeredToggleBtn = document.getElementById('answered-toggle-btn');
+
+            answeredToggleBtn.addEventListener('click', () => {
+                answeredSidebar.classList.toggle('active');
+                answeredToggleBtn.classList.toggle('active');
+                if (answeredSidebar.classList.contains('active')) {
+                    updateSidebar();
                 }
             });
 
-            searchResults.addEventListener('click', (e) => {
-                const item = e.target.closest('.search-result-item');
-                if (item) {
-                    const qId = item.getAttribute('data-id');
+            typeSelect.addEventListener('change', () => {
+                updateSidebar();
+            });
+
+            sidebarQList.addEventListener('click', (e) => {
+                if (e.target.classList.contains('available-q-badge')) {
+                    const qId = e.target.getAttribute('data-id');
                     displayQuestion(qId);
-                    searchResults.style.display = 'none';
-                    searchInput.value = '';
-                    searchInput.blur();
+                    sidebar.classList.remove('active');
+                    sidebarToggleBtn.classList.remove('active');
                 }
             });
 
-            // Hide results when clicking outside
-            document.addEventListener('click', (e) => {
-                if (!e.target.closest('.search-container')) {
-                    searchResults.style.display = 'none';
+            document.getElementById('answered-q-list').addEventListener('click', (e) => {
+                const item = e.target.closest('.answered-q-item');
+                if (item) {
+                    // Logic to find qId could be added if needed, skipping for brevity
+                }
+            });
+
+            function triggerSearch() {
+                const query = searchInput.value.trim();
+                const type = typeSelect.value;
+
+                if (!query) return;
+
+                // If they typed just a number, pad it and prefix it
+                let finalId = query;
+                if (!isNaN(query)) {
+                    const prefix = TYPE_PREFIXES[type];
+                    finalId = prefix + String(query).padStart(3, '0');
+                } else {
+                    // They might have typed THRY001 directly, just use it capitalized
+                    finalId = query.toUpperCase();
+                }
+
+                displayQuestion(finalId);
+                searchInput.value = '';
+                searchInput.blur();
+            }
+
+            btnSearch.addEventListener('click', triggerSearch);
+            searchInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    triggerSearch();
                 }
             });
 
             function displayQuestion(id) {
                 const q = window.QuizBowl.Services.QuestionService.getQuestion(id);
-                if (!q) return;
+                if (!q) {
+                    alert('Question not found: ' + id);
+                    return;
+                }
 
                 document.getElementById('qd-id').textContent = 'Question ' + q.id;
                 document.getElementById('qd-category').textContent = q.category;
                 document.getElementById('qd-marks').textContent = q.marks + ' pts';
-                
-                document.getElementById('qd-body').innerHTML = q.question;
+
+                let warningHtml = '';
+                if (q.status === 'answered') {
+                    warningHtml = `
+                        <div style="background: rgba(239, 68, 68, 0.15); border: 2px solid var(--color-danger); padding: var(--spacing-md); margin-bottom: var(--spacing-xl); border-radius: var(--border-radius); text-align: center;">
+                            <h2 style="color: var(--color-danger); margin: 0; font-size: 2rem;">⚠️ QUESTION ALREADY ANSWERED ⚠️</h2>
+                            <p style="margin: 0; font-size: 1.25rem; margin-top: 0.5rem;">Answered by: <strong>Team ${q.answeredBy}</strong></p>
+                        </div>
+                    `;
+                }
+
+                document.getElementById('qd-body').innerHTML = warningHtml + q.question;
 
                 const optionsContainer = document.getElementById('qd-options');
                 if (q.type === 'mcq' && q.options) {
@@ -247,13 +708,139 @@
                     optionsContainer.innerHTML = '';
                 }
 
-                display.style.display = 'block';
-
-                if (window.MathJax) {
-                    MathJax.typesetPromise([display]).catch(err => console.log(err));
+                // Prepare correct answer display
+                const correctAnswerElem = document.getElementById('qd-correct-answer');
+                if (q.type === 'mcq' && q.options && q.correctAnswer && q.options[q.correctAnswer]) {
+                    correctAnswerElem.innerHTML = `<strong>${q.correctAnswer}:</strong> ${q.options[q.correctAnswer]}`;
+                } else {
+                    correctAnswerElem.innerHTML = q.correctAnswer || 'Not provided';
                 }
+
+                // Reset answer section visibility
+                answerSection.style.display = 'none';
+                btnToggleAnswer.textContent = 'Show Answer';
+
+                // Trigger MathJax re-render
+                if (window.MathJax) {
+                    MathJax.typesetPromise([display]).catch(err => console.error(err));
+                }
+
+                btnBonus.style.display = 'none';
+                btnBonus.setAttribute('data-qid', q.id);
+
+                const scoringControls = document.getElementById('qd-scoring-controls');
+                if (q.status !== 'answered') {
+                    const settings = window.QuizBowl.Data.SettingsDB.getSettings();
+                    let duration = 15;
+                    if (q.type === 'theory') duration = settings.theoryTime;
+                    else if (q.type === 'calculation') duration = settings.calculationTime;
+                    else if (q.type === 'mcq') duration = settings.mcqTime;
+                    else if (q.type === 'true_false') duration = settings.true_falseTime;
+
+                    startTimer(duration);
+
+                    const teams = window.QuizBowl.Services.TeamService.getAllTeams();
+                    const container = document.getElementById('team-buttons-container');
+
+                    container.innerHTML = teams.map(t => `
+                        <button class="team-score-btn" data-team="${t.id}" data-qid="${q.id}" 
+                            style="padding: 1rem 2rem; font-size: 1.25rem; font-weight: bold; background: var(--bg-surface); border: 2px solid var(--color-primary); color: var(--color-primary); border-radius: var(--border-radius-lg); cursor: pointer; transition: all 0.2s ease; box-shadow: 0 4px 6px rgba(0,0,0,0.1);"
+                            onmouseover="this.style.background='var(--color-primary)'; this.style.color='#fff'; this.style.transform='translateY(-2px)';"
+                            onmouseout="this.style.background='var(--bg-surface)'; this.style.color='var(--color-primary)'; this.style.transform='translateY(0)';">
+                            ${t.name}
+                        </button>
+                    `).join('');
+
+                    scoringControls.style.display = 'flex';
+                } else {
+                    stopTimer();
+                    timerDisplay.style.display = 'none';
+                    scoringControls.style.display = 'none';
+                }
+
+                document.querySelector('.search-container').style.display = 'none';
+                display.style.display = 'block';
+                setBlurred(false);
+                btnCancelDisplay.style.display = 'inline-block';
+                btnToggleAnswer.style.display = 'inline-block';
             }
+
+            // Use event delegation for the team score buttons
+            document.getElementById('team-buttons-container').addEventListener('click', (e) => {
+                const btn = e.target.closest('.team-score-btn');
+                if (!btn) return;
+
+                const teamId = btn.getAttribute('data-team');
+                const qId = btn.getAttribute('data-qid');
+
+                if (!teamId || !qId) return;
+
+                const q = window.QuizBowl.Services.QuestionService.getQuestion(qId);
+                const t = window.QuizBowl.Services.TeamService.getTeam(teamId);
+
+                if (!q || !t) return;
+
+                // Record Score (assuming correct)
+                stopTimer();
+                window.QuizBowl.Services.ScoringService.awardMarks(qId, teamId, q.marks, 'correct');
+
+                updateSidebar(); // Refresh available list in case it's open
+
+                // Hide scoring controls
+                document.getElementById('qd-scoring-controls').style.display = 'none';
+
+                // Show celebration and leaderboard
+                showCelebrationLeaderboard(t.id, q.marks);
+
+                const overlay = document.getElementById('celebration-overlay');
+                document.getElementById('celebration-text').textContent = `🎉 Team ${t.name} got it right! 🎉`;
+                overlay.style.display = 'flex';
+
+                // Fire confetti
+                var duration = 3 * 1000;
+                var animationEnd = Date.now() + duration;
+                var defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 10000 };
+
+                function randomInRange(min, max) {
+                    return Math.random() * (max - min) + min;
+                }
+
+                var interval = setInterval(function () {
+                    var timeLeft = animationEnd - Date.now();
+
+                    if (timeLeft <= 0) {
+                        return clearInterval(interval);
+                    }
+
+                    var particleCount = 50 * (timeLeft / duration);
+                    confetti(Object.assign({}, defaults, { particleCount, origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 } }));
+                    confetti(Object.assign({}, defaults, { particleCount, origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 } }));
+                }, 250);
+            });
+
+            document.getElementById('celebration-overlay').addEventListener('click', function () {
+                this.style.display = 'none';
+                stopTimer();
+                // Reset question view
+                document.getElementById('question-display').style.display = 'none';
+                document.querySelector('.search-container').style.display = 'flex';
+                document.getElementById('public-search').focus();
+            });
+
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    if (document.getElementById('celebration-overlay').style.display === 'flex') {
+                        document.getElementById('celebration-overlay').click();
+                    } else if (display.style.display === 'block') {
+                        stopTimer();
+                        display.style.display = 'none';
+                        document.querySelector('.search-container').style.display = 'flex';
+                        document.getElementById('public-search').focus();
+                    }
+                }
+            });
         });
     </script>
 </body>
+
 </html>

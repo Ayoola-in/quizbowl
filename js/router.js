@@ -11,7 +11,7 @@
             'question': (id) => window.QuizBowl.Views.QuestionDetail.render(document.getElementById('view-container'), id),
             'teams': () => window.QuizBowl.Views.Teams.render(document.getElementById('view-container')),
             'history': () => renderHistory(),
-            'settings': () => renderSettings(),
+            'settings': () => window.QuizBowl.Views.Settings.render(document.getElementById('view-container')),
         },
 
         init: function() {
