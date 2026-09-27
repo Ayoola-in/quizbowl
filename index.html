@@ -4,12 +4,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0B1222">
     <title>QuizBowl - Departmental Quiz Management</title>
+
+    <!-- Apply saved theme before first paint to avoid a flash -->
+    <script>
+        try {
+            var savedTheme = localStorage.getItem('quizbowl_theme');
+            if (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.setAttribute('data-theme', 'dark');
+            }
+        } catch (e) {}
+    </script>
 
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
     <!-- CSS -->
     <link rel="stylesheet" href="css/variables.css">
@@ -17,6 +28,7 @@
     <link rel="stylesheet" href="css/components.css">
     <link rel="stylesheet" href="css/dashboard.css">
     <link rel="stylesheet" href="css/questions.css">
+    <link rel="stylesheet" href="css/views.css">
 
     <!-- MathJax for rendering Mathematical Expressions -->
     <script>
@@ -31,33 +43,54 @@
 <body>
     <div id="app-container">
         <!-- Sidebar -->
-        <aside class="sidebar">
+        <aside class="sidebar" id="sidebar">
             <div class="sidebar-header">
-                <div class="logo">
-                    <span class="logo-icon"></span>
-                    <h1>QuizBowl</h1>
-                </div>
+                <a href="#dashboard" class="logo">
+                    <span class="logo-icon"><span data-icon="trophy"></span></span>
+                    <span>
+                        <h1>QuizBowl</h1>
+                        <small>Engineering Quiz Manager</small>
+                    </span>
+                </a>
             </div>
-            <nav class="sidebar-nav">
-                <a href="#dashboard" class="nav-item active" data-route="dashboard">Dashboard</a>
-                <a href="#questions" class="nav-item" data-route="questions">Questions</a>
-                <a href="#teams" class="nav-item" data-route="teams">Teams</a>
-                <a href="#history" class="nav-item" data-route="history">History</a>
-                <a href="#settings" class="nav-item" data-route="settings">Settings</a>
+            <nav class="sidebar-nav" aria-label="Main navigation">
+                <div class="nav-label">Competition</div>
+                <a href="#dashboard" class="nav-item active" data-route="dashboard"><span data-icon="dashboard"></span>Dashboard</a>
+                <a href="#questions" class="nav-item" data-route="questions"><span data-icon="questions"></span>Questions</a>
+                <a href="#teams" class="nav-item" data-route="teams"><span data-icon="teams"></span>Teams</a>
+                <a href="#history" class="nav-item" data-route="history"><span data-icon="history"></span>History</a>
+                <div class="nav-label" style="margin-top: var(--spacing-md);">Configuration</div>
+                <a href="#settings" class="nav-item" data-route="settings"><span data-icon="settings"></span>Settings</a>
             </nav>
+            <div class="sidebar-footer">
+                <a href="public.html" target="_blank" rel="noopener" class="nav-item">
+                    <span data-icon="external"></span>Open Public Display
+                </a>
+            </div>
         </aside>
+        <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
 
         <!-- Main Content -->
         <main class="main-content">
             <header class="top-header">
+                <button class="btn btn-ghost btn-icon menu-toggle" id="btn-menu" aria-label="Open navigation">
+                    <span data-icon="menu"></span>
+                </button>
                 <div class="header-search">
-                    <input type="text" id="global-search" placeholder="Search questions... (Ctrl+K)">
+                    <span data-icon="search"></span>
+                    <input type="search" id="global-search" placeholder="Search questions..." aria-label="Search questions" autocomplete="off">
+                    <kbd>Ctrl K</kbd>
                 </div>
                 <div class="header-actions">
-                    <a href="public.html" target="_blank" class="btn"
-                        style="background: var(--bg-surface); border: 1px solid var(--border-color); color: var(--text-primary); text-decoration: none;">Public
-                        Display ↗</a>
-                    <button class="btn btn-primary" id="btn-display-mode">Display Mode</button>
+                    <button class="btn btn-ghost btn-icon" id="btn-theme" aria-label="Toggle dark mode" title="Toggle dark mode">
+                        <span data-icon="moon"></span>
+                    </button>
+                    <a href="public.html" target="_blank" rel="noopener" class="btn btn-secondary hide-in-display hide-on-mobile" title="Open the audience-facing display in a new tab">
+                        <span data-icon="external"></span><span class="btn-label-optional">Public Display</span>
+                    </a>
+                    <button class="btn btn-primary" id="btn-display-mode" title="Hide admin controls for projecting">
+                        <span data-icon="monitor"></span><span class="btn-label-optional" id="display-mode-label">Display Mode</span>
+                    </button>
                 </div>
             </header>
 
@@ -85,9 +118,11 @@
 
     <!-- Utils -->
     <script src="js/utils/search.js"></script>
+    <script src="js/utils/ui.js"></script>
 
     <!-- Components -->
     <script src="js/components/toast.js"></script>
+    <script src="js/components/modal.js"></script>
 
     <!-- Views -->
     <script src="js/views/dashboard.js"></script>

@@ -4,237 +4,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0B1222">
     <title>QuizBowl - Public Display</title>
+
+    <!-- Apply saved theme before first paint to avoid a flash -->
+    <script>
+        try {
+            var savedTheme = localStorage.getItem('quizbowl_theme');
+            if (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.setAttribute('data-theme', 'dark');
+            }
+        } catch (e) {}
+    </script>
 
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
     <!-- CSS -->
     <link rel="stylesheet" href="css/variables.css">
     <link rel="stylesheet" href="css/main.css">
     <link rel="stylesheet" href="css/components.css">
-
-    <style>
-        body {
-            background-color: var(--bg-main);
-            display: flex;
-            flex-direction: column;
-            min-height: 100vh;
-        }
-
-        .public-header {
-            background-color: var(--color-primary);
-            color: var(--text-inverse);
-            padding: var(--spacing-lg) var(--spacing-xl);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-
-        .public-main {
-            flex: 1;
-            padding: var(--spacing-xl);
-            max-width: 1200px;
-            margin: 0 auto;
-            width: 100%;
-        }
-
-        .search-container {
-            margin-bottom: var(--spacing-xl);
-            position: relative;
-        }
-
-        .search-input {
-            width: 100%;
-            padding: var(--spacing-md);
-            font-size: 1.25rem;
-            border: 2px solid var(--border-color);
-            border-radius: var(--border-radius-lg);
-            box-shadow: var(--shadow-sm);
-        }
-
-        .search-results {
-            position: absolute;
-            top: 100%;
-            left: 0;
-            right: 0;
-            background: var(--bg-surface);
-            border: 1px solid var(--border-color);
-            border-radius: var(--border-radius);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-            max-height: 400px;
-            overflow-y: auto;
-            z-index: 100;
-            display: none;
-        }
-
-        .search-result-item {
-            padding: var(--spacing-md) var(--spacing-lg);
-            border-bottom: 1px solid var(--border-color);
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-
-        .search-result-item:hover {
-            background: var(--bg-main);
-        }
-
-        /* Sidebar Styles */
-        .sidebar {
-            position: fixed;
-            top: 0;
-            left: -350px;
-            width: 300px;
-            height: 100vh;
-            background: var(--bg-surface);
-            box-shadow: 2px 0 10px rgba(0, 0, 0, 0.2);
-            transition: left 0.3s ease;
-            z-index: 1000;
-            padding: var(--spacing-xl);
-            display: flex;
-            flex-direction: column;
-            overflow-y: auto;
-        }
-
-        .sidebar.active {
-            left: 0;
-        }
-
-        .sidebar-toggle {
-            position: fixed;
-            top: 50%;
-            left: 0;
-            transform: translateY(-50%);
-            background: var(--color-primary);
-            color: #fff;
-            padding: 1rem 0.5rem;
-            border-radius: 0 8px 8px 0;
-            cursor: pointer;
-            z-index: 1001;
-            box-shadow: 2px 0 5px rgba(0, 0, 0, 0.2);
-            font-weight: bold;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            writing-mode: vertical-rl;
-            text-orientation: mixed;
-            transition: left 0.3s ease;
-        }
-
-        .sidebar-toggle.active {
-            left: 300px;
-        }
-
-        .available-q-badge {
-            display: inline-block;
-            background: var(--bg-main);
-            border: 1px solid var(--border-color);
-            padding: 0.5rem 1rem;
-            margin: 0.5rem;
-            border-radius: var(--border-radius);
-            font-weight: bold;
-            color: var(--color-primary);
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .available-q-badge:hover {
-            background: var(--color-primary);
-            color: #fff;
-        }
-
-        /* Right Sidebar Styles */
-        .sidebar-right {
-            position: fixed;
-            top: 0;
-            right: -350px;
-            width: 300px;
-            height: 100vh;
-            background: var(--bg-surface);
-            box-shadow: -2px 0 10px rgba(0, 0, 0, 0.2);
-            transition: right 0.3s ease;
-            z-index: 1000;
-            padding: var(--spacing-xl);
-            display: flex;
-            flex-direction: column;
-            overflow-y: auto;
-        }
-
-        .sidebar-right.active {
-            right: 0;
-        }
-
-        .sidebar-right-toggle {
-            position: fixed;
-            top: 50%;
-            right: 0;
-            transform: translateY(-50%);
-            background: var(--color-success);
-            color: #fff;
-            padding: 1rem 0.5rem;
-            border-radius: 8px 0 0 8px;
-            cursor: pointer;
-            z-index: 1001;
-            box-shadow: -2px 0 5px rgba(0, 0, 0, 0.2);
-            font-weight: bold;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            writing-mode: vertical-rl;
-            text-orientation: mixed;
-            transition: right 0.3s ease;
-        }
-
-        .sidebar-right-toggle.active {
-            right: 300px;
-        }
-    </style>
-    <style>
-        .question-display {
-            background: var(--bg-surface);
-            padding: var(--spacing-xl);
-            border-radius: var(--border-radius-lg);
-            box-shadow: var(--shadow-md);
-            border: 1px solid var(--border-color);
-            display: none;
-            font-size: 1.5rem;
-        }
-
-        .options-grid {
-            margin-top: var(--spacing-lg);
-            display: grid;
-            gap: var(--spacing-md);
-        }
-
-        .option-card {
-            padding: var(--spacing-md);
-            border: 2px solid var(--border-color);
-            border-radius: var(--border-radius);
-            background: var(--bg-main);
-        }
-
-        .fullscreen-btn {
-            background: rgba(255, 255, 255, 0.2);
-            color: white;
-            border: none;
-            padding: 0.5rem 1rem;
-            border-radius: var(--border-radius);
-            cursor: pointer;
-        }
-
-        .fullscreen-btn:hover {
-            background: rgba(255, 255, 255, 0.3);
-        }
-
-        .blurred {
-            filter: blur(8px);
-            pointer-events: none;
-            opacity: 0.7;
-            transition: all 0.3s ease;
-        }
-    </style>
+    <link rel="stylesheet" href="css/public.css">
 
     <!-- MathJax for rendering Mathematical Expressions -->
     <script>
@@ -246,117 +38,113 @@
     <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
 </head>
 
-<body>
+<body class="public-body">
 
     <header class="public-header">
-        <h1>QuizBowl Public Display</h1>
-        <button id="btn-fullscreen" class="fullscreen-btn">Toggle Fullscreen</button>
+        <div class="logo">
+            <span class="logo-icon"><span data-icon="trophy"></span></span>
+            <span>
+                <h1>QuizBowl</h1>
+                <small>Live Quiz</small>
+            </span>
+        </div>
+        <div class="scoreboard" id="scoreboard" aria-label="Scoreboard"></div>
+        <div style="display: flex; gap: 0.25rem;">
+            <button class="btn btn-ghost btn-icon" id="btn-theme" aria-label="Toggle dark mode"><span data-icon="moon"></span></button>
+            <button class="btn btn-ghost btn-icon" id="btn-fullscreen" aria-label="Toggle fullscreen" title="Toggle fullscreen (F)"><span data-icon="maximize"></span></button>
+        </div>
     </header>
 
-    <div id="available-sidebar" class="sidebar">
-        <h2
-            style="margin-top: 0; margin-bottom: 1rem; color: var(--color-primary); border-bottom: 2px solid var(--border-color); padding-bottom: 0.5rem;">
-            Available Q's</h2>
-        <div style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 1rem;">
-            Type: <strong id="sidebar-type-label">Theory</strong>
-        </div>
-        <div id="sidebar-q-list" style="display: flex; flex-wrap: wrap;">
-            <!-- Badges go here -->
-        </div>
-    </div>
-    <div id="sidebar-toggle-btn" class="sidebar-toggle">
-        Available
-    </div>
-
-    <div id="answered-sidebar" class="sidebar-right">
-        <h2
-            style="margin-top: 0; margin-bottom: 1rem; color: var(--color-success); border-bottom: 2px solid var(--border-color); padding-bottom: 0.5rem;">
-            Answered Q's</h2>
-        <div style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 1rem;">
-            Type: <strong id="answered-type-label">Theory</strong>
-        </div>
-        <div id="answered-q-list" style="display: flex; flex-wrap: wrap;">
-            <!-- Badges go here -->
-        </div>
-    </div>
-    <div id="answered-toggle-btn" class="sidebar-right-toggle">
-        Answered
-    </div>
-
     <main class="public-main">
-        <div class="search-container"
-            style="display: flex; gap: var(--spacing-md); position: relative; align-items: center;">
-            <select id="public-type" class="search-input" style="flex: 0 0 200px;">
-                <option value="theory">Theory</option>
-                <option value="calculation">Calculation</option>
-                <option value="mcq">Multiple Choice</option>
-                <option value="true_false">True/False</option>
-            </select>
-            <div style="flex: 1;">
-                <input type="text" id="public-search" class="search-input"
-                    placeholder="Enter question number (e.g. 1) and press Enter..." autocomplete="off">
-            </div>
-            <button id="btn-search" class="btn btn-primary"
-                style="padding: var(--spacing-md) var(--spacing-lg); border-radius: var(--border-radius-lg);">Show
-                Question</button>
-        </div>
+        <!-- Question picker -->
+        <section class="picker" id="picker">
+            <h2>Pick a question</h2>
+            <p>Choose a category, then enter a question number.</p>
 
-        <div id="question-display" class="question-display">
-            <div id="qd-header"
-                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; border-bottom: 2px solid var(--border-color); padding-bottom: 1rem;">
-                <div>
-                    <span id="qd-id" style="font-weight: bold; color: var(--color-primary); font-size: 1.5rem;"></span>
-                    <span id="qd-category"
-                        style="font-size: 1rem; color: var(--text-secondary); margin-left: 1rem;"></span>
-                    <span id="qd-marks"
-                        style="font-size: 1rem; font-weight: 500; background: var(--bg-main); padding: 4px 8px; border-radius: 4px; margin-left: 1rem;"></span>
+            <div class="segmented" id="type-tabs" role="tablist" aria-label="Question type"></div>
+
+            <form class="picker-form" id="picker-form" autocomplete="off">
+                <input type="text" id="public-search" class="picker-input" inputmode="numeric"
+                    placeholder="Question number, e.g. 7" aria-label="Question number">
+                <button type="submit" id="btn-search" class="btn btn-primary">Show Question</button>
+            </form>
+            <div class="key-hints">
+                <span><kbd>Enter</kbd> show question</span>
+                <span><kbd>A</kbd> reveal answer</span>
+                <span><kbd>Esc</kbd> back to picker</span>
+                <span><kbd>F</kbd> fullscreen</span>
+            </div>
+
+            <div class="number-board">
+                <div class="number-board-head">
+                    <h3>Available</h3>
+                    <span id="available-count"></span>
                 </div>
-                <div style="display: flex; gap: 1rem; align-items: center;">
-                    <button id="btn-toggle-answer" class="btn"
-                        style="background: #3b82f6; color: white; display: none; height: 100%; border-radius: var(--border-radius-lg); font-size: 1.2rem; font-weight: bold;">Show
-                        Answer</button>
-                    <div id="qd-timer"
-                        style="font-size: 3rem; font-weight: bold; color: var(--color-primary); background: var(--bg-main); padding: 0.5rem 1.5rem; border-radius: var(--border-radius-lg); border: 2px solid var(--border-color); display: none;">
-                        00
+                <div class="number-grid" id="available-grid"></div>
+            </div>
+            <div class="number-board" id="answered-board">
+                <div class="number-board-head">
+                    <h3>Already answered</h3>
+                    <span id="answered-count"></span>
+                </div>
+                <div class="number-grid" id="answered-grid"></div>
+            </div>
+        </section>
+
+        <!-- Question stage -->
+        <section id="question-display" class="question-display" hidden>
+            <div class="qd-top">
+                <div class="qd-info">
+                    <span class="qd-number" id="qd-id"></span>
+                    <span id="qd-type"></span>
+                    <span class="qd-pill" id="qd-category"></span>
+                    <span class="qd-pill marks" id="qd-marks"></span>
+                </div>
+                <div class="qd-controls">
+                    <div class="timer" id="qd-timer" hidden>
+                        <svg viewBox="0 0 88 88" aria-hidden="true">
+                            <circle class="track" cx="44" cy="44" r="40"></circle>
+                            <circle class="progress" id="timer-progress" cx="44" cy="44" r="40"></circle>
+                        </svg>
+                        <span class="timer-value" id="timer-value">00</span>
                     </div>
-                    <button id="btn-cancel-display" class="btn"
-                        style="background: var(--color-danger); color: white; display: none; height: 100%; border-radius: var(--border-radius-lg); font-size: 1.2rem; font-weight: bold;">Cancel</button>
+                    <button id="btn-toggle-answer" class="btn btn-secondary btn-lg"><span data-icon="eye"></span><span>Show Answer</span></button>
+                    <button id="btn-cancel-display" class="btn btn-ghost btn-icon btn-lg" aria-label="Close question" title="Close (Esc)" style="width: 48px;"><span data-icon="x"></span></button>
                 </div>
             </div>
-            <div id="qd-body" style="line-height: 1.6; font-size: 2rem; margin-bottom: 2rem;"></div>
-            <div id="qd-options" class="options-grid"></div>
 
-            <div id="qd-answer-section"
-                style="display: none; margin-top: 2rem; padding: 1.5rem; background: #d1fae5; border: 2px solid #10b981; border-radius: var(--border-radius-lg); color: #065f46;">
-                <h3 style="margin-top: 0; margin-bottom: 1rem;">Correct Answer:</h3>
-                <div id="qd-correct-answer" style="font-size: 2rem; font-weight: bold;"></div>
-            </div>
+            <div id="qd-answered-warning"></div>
 
-            <div id="qd-scoring-controls"
-                style="display: none; margin-top: 3rem; padding-top: 2rem; border-top: 2px solid var(--border-color); flex-direction: column; align-items: center; gap: 1.5rem;">
-                <button id="btn-start-bonus"
-                    style="display: none; padding: 1rem 2rem; font-size: 1.5rem; font-weight: bold; background: var(--color-warning); color: #000; border: none; border-radius: var(--border-radius-lg); cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                    Start Bonus Time
-                </button>
-
-                <h3 style="margin: 0; color: var(--text-secondary); font-size: 1.5rem;">Who answered correctly?</h3>
-                <div id="team-buttons-container"
-                    style="display: flex; gap: 1rem; flex-wrap: wrap; justify-content: center;">
+            <div class="qd-stage" id="qd-stage">
+                <div class="times-up" id="times-up" hidden>
+                    <h3>Time's up!</h3>
+                    <button id="btn-start-bonus" class="btn btn-primary btn-lg"><span data-icon="zap"></span> Start Bonus Time</button>
+                </div>
+                <div id="qd-content">
+                    <div id="qd-body" class="qd-body"></div>
+                    <div id="qd-options" class="options-grid"></div>
                 </div>
             </div>
-        </div>
+
+            <div id="qd-answer-section" class="answer-panel" hidden>
+                <h3>Correct answer</h3>
+                <div id="qd-correct-answer"></div>
+            </div>
+
+            <div id="qd-scoring-controls" class="scoring-controls" hidden>
+                <h3>Who answered correctly?</h3>
+                <div id="team-buttons-container" class="team-buttons"></div>
+                <button class="btn btn-ghost" id="btn-no-winner">No one — close question</button>
+            </div>
+        </section>
     </main>
 
     <!-- Celebration Overlay -->
-    <div id="celebration-overlay"
-        style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.85); z-index: 9999; justify-content: center; align-items: center; flex-direction: column; cursor: pointer;">
-        <h1 id="celebration-text"
-            style="color: #fff; font-size: 5rem; text-align: center; text-shadow: 0 4px 20px rgba(255,255,255,0.3); margin-bottom: 2rem;">
-        </h1>
-        <div id="celebration-leaderboard"
-            style="width: 80%; max-width: 800px; margin-bottom: 2rem; display: flex; flex-direction: column; gap: 1rem;">
-        </div>
-        <p style="color: #ccc; font-size: 1.5rem;">Click anywhere to continue</p>
+    <div id="celebration-overlay" class="celebration" hidden role="dialog" aria-live="assertive">
+        <h1 id="celebration-text" class="celebration-title"></h1>
+        <div id="celebration-sub" class="celebration-sub"></div>
+        <div id="celebration-leaderboard" class="celebration-leaderboard"></div>
+        <p class="celebration-hint">Click anywhere or press Esc to continue</p>
     </div>
 
     <!-- Application Core & Dependencies -->
@@ -371,34 +159,16 @@
     <script src="js/services/team-service.js"></script>
     <script src="js/services/scoring-service.js"></script>
     <script src="js/utils/search.js"></script>
+    <script src="js/utils/ui.js"></script>
+    <script src="js/components/toast.js"></script>
 
     <!-- Public Display Logic -->
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            const searchInput = document.getElementById('public-search');
-            const typeSelect = document.getElementById('public-type');
-            const btnSearch = document.getElementById('btn-search');
-            const display = document.getElementById('question-display');
-            const btnFullscreen = document.getElementById('btn-fullscreen');
-
-            let allQuestions = window.QuizBowl.Services.QuestionService.getAllQuestions();
-
-            // Toggle fullscreen
-            btnFullscreen.addEventListener('click', () => {
-                if (!document.fullscreenElement) {
-                    document.documentElement.requestFullscreen().catch(err => console.log(err));
-                } else {
-                    document.exitFullscreen().catch(err => console.log(err));
-                }
-            });
-
-            // Focus search with Ctrl+K
-            document.addEventListener('keydown', (e) => {
-                if (e.ctrlKey && e.key === 'k') {
-                    e.preventDefault();
-                    searchInput.focus();
-                }
-            });
+            const UI = window.QuizBowl.Utils.UI;
+            const QuestionService = window.QuizBowl.Services.QuestionService;
+            const TeamService = window.QuizBowl.Services.TeamService;
+            const Toast = window.QuizBowl.Components.Toast;
 
             const TYPE_PREFIXES = {
                 'theory': 'THRY',
@@ -406,302 +176,250 @@
                 'mcq': 'MCQ',
                 'true_false': 'TF'
             };
+            const TYPE_ORDER = ['theory', 'calculation', 'mcq', 'true_false'];
 
-            const sidebar = document.getElementById('available-sidebar');
-            const sidebarToggleBtn = document.getElementById('sidebar-toggle-btn');
-            const sidebarQList = document.getElementById('sidebar-q-list');
-            const sidebarTypeLabel = document.getElementById('sidebar-type-label');
-            const timerDisplay = document.getElementById('qd-timer');
+            const picker = document.getElementById('picker');
+            const pickerForm = document.getElementById('picker-form');
+            const searchInput = document.getElementById('public-search');
+            const display = document.getElementById('question-display');
+            const typeTabs = document.getElementById('type-tabs');
+            const timerEl = document.getElementById('qd-timer');
+            const timerValue = document.getElementById('timer-value');
+            const timerProgress = document.getElementById('timer-progress');
+            const timesUp = document.getElementById('times-up');
             const btnBonus = document.getElementById('btn-start-bonus');
+            const btnToggleAnswer = document.getElementById('btn-toggle-answer');
+            const answerSection = document.getElementById('qd-answer-section');
+            const scoringControls = document.getElementById('qd-scoring-controls');
+            const overlay = document.getElementById('celebration-overlay');
 
+            const RING_LENGTH = 2 * Math.PI * 40;
+            timerProgress.style.strokeDasharray = RING_LENGTH;
+
+            let currentType = 'theory';
+            let currentQuestionId = null;
             let timerInterval = null;
-            let currentTimerVal = 0;
+            let confettiInterval = null;
 
+            // ---------- Theme & fullscreen ----------
+            window.QuizBowl.Theme.syncButton();
+            document.getElementById('btn-theme').addEventListener('click', () => {
+                window.QuizBowl.Theme.set(!window.QuizBowl.Theme.isDark());
+            });
+
+            function toggleFullscreen() {
+                if (!document.fullscreenElement) {
+                    document.documentElement.requestFullscreen().catch(err => console.log(err));
+                } else {
+                    document.exitFullscreen().catch(err => console.log(err));
+                }
+            }
+            document.getElementById('btn-fullscreen').addEventListener('click', toggleFullscreen);
+
+            // ---------- Scoreboard ----------
+            function renderScoreboard() {
+                const teams = TeamService.getAllTeams();
+                document.getElementById('scoreboard').innerHTML = teams.map(t => `
+                    <span class="score-pill" title="${UI.escapeHtml(t.name)}">
+                        <span class="team-avatar" style="background: ${UI.teamColor(t)};">${UI.escapeHtml(UI.initials(t.name))}</span>
+                        ${UI.escapeHtml(t.name)}
+                        <strong>${t.score}</strong>
+                    </span>
+                `).join('');
+            }
+
+            // ---------- Picker ----------
+            function numberOf(q) {
+                return parseInt(q.id.replace(TYPE_PREFIXES[q.type] || '', ''), 10) || q.id;
+            }
+
+            function renderPicker() {
+                const questions = QuestionService.getAllQuestions();
+
+                typeTabs.innerHTML = TYPE_ORDER.map(type => {
+                    const available = questions.filter(q => q.type === type && q.status === 'available').length;
+                    const active = type === currentType;
+                    return `<button type="button" role="tab" data-type="${type}" class="${active ? 'active' : ''}" aria-selected="${active}">
+                        ${UI.typeLabel(type)}<span class="count">${available}</span>
+                    </button>`;
+                }).join('');
+
+                const ofType = questions.filter(q => q.type === currentType);
+                const available = ofType.filter(q => q.status === 'available');
+                const answered = ofType.filter(q => q.status === 'answered');
+
+                document.getElementById('available-count').textContent = `${available.length} of ${ofType.length}`;
+                document.getElementById('available-grid').innerHTML = available.length
+                    ? available.map(q => `<button class="number-chip" data-id="${UI.escapeHtml(q.id)}" title="${UI.escapeHtml(q.id)}">${numberOf(q)}</button>`).join('')
+                    : `<p class="text-muted" style="grid-column: 1 / -1;">${ofType.length
+                        ? 'Every question in this category has been answered.'
+                        : 'No questions in this category yet. Add some from the admin page.'}</p>`;
+
+                document.getElementById('answered-board').hidden = answered.length === 0;
+                document.getElementById('answered-count').textContent = answered.length;
+                document.getElementById('answered-grid').innerHTML = answered.map(q => {
+                    const team = TeamService.getTeam(q.answeredBy);
+                    return `<button class="number-chip answered" data-id="${UI.escapeHtml(q.id)}" title="Answered by ${UI.escapeHtml(team ? team.name : 'unknown team')}">
+                        ${numberOf(q)}<span class="chip-dot" style="background: ${UI.teamColor(team)};"></span>
+                    </button>`;
+                }).join('');
+            }
+
+            function showPicker() {
+                stopTimer();
+                currentQuestionId = null;
+                display.hidden = true;
+                picker.hidden = false;
+                renderPicker();
+                renderScoreboard();
+                searchInput.focus();
+            }
+
+            typeTabs.addEventListener('click', (e) => {
+                const btn = e.target.closest('button[data-type]');
+                if (!btn) return;
+                currentType = btn.getAttribute('data-type');
+                renderPicker();
+                searchInput.focus();
+            });
+
+            picker.addEventListener('click', (e) => {
+                const chip = e.target.closest('.number-chip');
+                if (chip) displayQuestion(chip.getAttribute('data-id'));
+            });
+
+            pickerForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const query = searchInput.value.trim();
+                if (!query) {
+                    searchInput.focus();
+                    return;
+                }
+
+                // If they typed just a number, pad it and prefix it; otherwise treat it as a full ID (e.g. THRY001)
+                const finalId = !isNaN(query)
+                    ? TYPE_PREFIXES[currentType] + String(parseInt(query, 10)).padStart(3, '0')
+                    : query.toUpperCase();
+
+                if (displayQuestion(finalId)) {
+                    searchInput.value = '';
+                } else {
+                    searchInput.classList.remove('shake');
+                    void searchInput.offsetWidth; // restart the animation
+                    searchInput.classList.add('shake');
+                    searchInput.select();
+                }
+            });
+
+            searchInput.addEventListener('animationend', () => searchInput.classList.remove('shake'));
+
+            // ---------- Timer ----------
             function stopTimer() {
                 if (timerInterval) clearInterval(timerInterval);
                 timerInterval = null;
             }
 
             function setBlurred(isBlurred) {
-                const body = document.getElementById('qd-body');
-                const options = document.getElementById('qd-options');
-                if (isBlurred) {
-                    body.classList.add('blurred');
-                    options.classList.add('blurred');
-                } else {
-                    body.classList.remove('blurred');
-                    options.classList.remove('blurred');
-                }
+                document.getElementById('qd-content').classList.toggle('blurred', isBlurred);
             }
 
-            function formatTime(seconds) {
-                return seconds < 10 ? '0' + seconds : seconds;
+            function renderTimer(remaining, duration) {
+                timerValue.textContent = remaining < 10 ? '0' + remaining : remaining;
+                const fraction = duration > 0 ? remaining / duration : 0;
+                timerProgress.style.strokeDashoffset = RING_LENGTH * (1 - fraction);
+                timerEl.classList.toggle('warning', remaining > 0 && remaining <= 5);
+                timerEl.classList.toggle('done', remaining === 0);
             }
 
             function startTimer(duration, isBonus = false) {
                 stopTimer();
-                currentTimerVal = duration;
-                timerDisplay.textContent = formatTime(currentTimerVal);
-                timerDisplay.style.display = 'block';
-                timerDisplay.style.color = 'var(--color-primary)';
+                let remaining = duration;
+                timerEl.hidden = false;
+                timerEl.classList.toggle('bonus', isBonus);
+                // Jump the ring to full without animating backwards
+                timerProgress.style.transition = 'none';
+                renderTimer(remaining, duration);
+                void timerProgress.getBoundingClientRect();
+                timerProgress.style.transition = '';
 
                 timerInterval = setInterval(() => {
-                    currentTimerVal--;
-                    if (currentTimerVal <= 0) {
-                        currentTimerVal = 0;
+                    remaining = Math.max(0, remaining - 1);
+                    renderTimer(remaining, duration);
+
+                    if (remaining === 0) {
                         stopTimer();
-                        timerDisplay.style.color = 'var(--color-danger)';
-
-                        if (!isBonus) {
-                            // Show bonus button if not answered yet
-                            const qId = btnBonus.getAttribute('data-qid');
-                            const q = window.QuizBowl.Services.QuestionService.getQuestion(qId);
-                            if (q && q.status !== 'answered') {
-                                btnBonus.style.display = 'inline-block';
-                                setBlurred(true);
-                            }
-                        } else {
+                        const q = QuestionService.getQuestion(currentQuestionId);
+                        if (q && q.status !== 'answered') {
                             setBlurred(true);
+                            timesUp.hidden = false;
+                            // A bonus round is offered only once, after the main timer
+                            btnBonus.hidden = isBonus;
                         }
-                    } else if (currentTimerVal <= 5) {
-                        timerDisplay.style.color = 'var(--color-danger)';
                     }
-
-                    timerDisplay.textContent = formatTime(currentTimerVal);
                 }, 1000);
             }
 
             btnBonus.addEventListener('click', () => {
                 const settings = window.QuizBowl.Data.SettingsDB.getSettings();
-                startTimer(settings.bonusTime, true);
-                btnBonus.style.display = 'none';
+                timesUp.hidden = true;
                 setBlurred(false);
+                startTimer(settings.bonusTime, true);
             });
 
-            const btnCancelDisplay = document.getElementById('btn-cancel-display');
-            btnCancelDisplay.addEventListener('click', () => {
-                stopTimer();
-                display.style.display = 'none';
-                document.querySelector('.search-container').style.display = 'flex';
-                searchInput.focus();
-            });
+            // ---------- Answer reveal ----------
+            function setAnswerVisible(visible) {
+                answerSection.hidden = !visible;
+                document.getElementById('qd-options').classList.toggle('revealed', visible);
+                btnToggleAnswer.innerHTML = `${UI.icon(visible ? 'eyeOff' : 'eye')}<span>${visible ? 'Hide Answer' : 'Show Answer'}</span>`;
+            }
 
-            const btnToggleAnswer = document.getElementById('btn-toggle-answer');
-            const answerSection = document.getElementById('qd-answer-section');
+            btnToggleAnswer.addEventListener('click', () => setAnswerVisible(answerSection.hidden));
 
-            btnToggleAnswer.addEventListener('click', () => {
-                if (answerSection.style.display === 'none') {
-                    answerSection.style.display = 'block';
-                    btnToggleAnswer.textContent = 'Hide Answer';
-                } else {
-                    answerSection.style.display = 'none';
-                    btnToggleAnswer.textContent = 'Show Answer';
-                }
-            });
+            document.getElementById('btn-cancel-display').addEventListener('click', showPicker);
+            document.getElementById('btn-no-winner').addEventListener('click', showPicker);
 
-            sidebarToggleBtn.addEventListener('click', () => {
-                sidebar.classList.toggle('active');
-                sidebarToggleBtn.classList.toggle('active');
-                if (sidebar.classList.contains('active')) {
-                    updateSidebar();
-                }
-            });
-
-            function updateSidebar() {
-                // Populate Available Sidebar
-                const typeSelect = document.getElementById('public-type');
-                const currentType = typeSelect.value;
-                const typeText = typeSelect.options[typeSelect.selectedIndex].text;
-                sidebarTypeLabel.textContent = typeText;
-
-                const questions = window.QuizBowl.Services.QuestionService.getAllQuestions();
-                const availableQs = questions.filter(q => q.type === currentType && q.status === 'available');
-
-                if (availableQs.length === 0) {
-                    sidebarQList.innerHTML = '<p style="color: var(--text-muted); width: 100%;">No available questions in this category.</p>';
-                } else {
-                    sidebarQList.innerHTML = availableQs.map(q => {
-                        const numberOnly = q.id.replace(TYPE_PREFIXES[currentType], '');
-                        return `<div class="available-q-badge" data-id="${q.id}">${numberOnly}</div>`;
-                    }).join('');
+            // ---------- Question display ----------
+            function displayQuestion(id) {
+                const q = QuestionService.getQuestion(id);
+                if (!q) {
+                    Toast.show(`Question ${id} was not found.`, 'danger');
+                    return false;
                 }
 
-                // Populate Answered Sidebar
-                const answeredSidebar = document.getElementById('answered-sidebar');
-                const answeredQList = document.getElementById('answered-q-list');
-                const answeredTypeLabel = document.getElementById('answered-type-label');
-                answeredTypeLabel.textContent = typeText;
-                const answeredQs = questions.filter(q => q.type === currentType && q.status === 'answered');
+                currentQuestionId = q.id;
+                currentType = q.type;
 
-                if (answeredQs.length === 0) {
-                    answeredQList.innerHTML = '<p style="color: var(--text-muted); width: 100%;">No answered questions in this category.</p>';
-                } else {
-                    answeredQList.innerHTML = answeredQs.map(q => {
-                        const numberOnly = q.id.replace(TYPE_PREFIXES[currentType], '');
-                        const team = window.QuizBowl.Services.TeamService.getTeam(q.answeredBy);
-                        const teamColor = team ? team.color : '#666';
-                        const teamInitial = team ? team.name.charAt(0).toUpperCase() : '?';
+                document.getElementById('qd-id').textContent = `Question ${numberOf(q)}`;
+                document.getElementById('qd-type').innerHTML = UI.typeChip(q.type);
+                document.getElementById('qd-category').textContent = q.category || 'General';
+                document.getElementById('qd-marks').textContent = `${q.marks} pts`;
 
-                        return `
-                        <div class="answered-q-item" style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0; border-bottom: 1px solid var(--border-color);">
-                            <div style="font-weight: bold; color: var(--text-primary); font-size: 1.1rem;">Q${numberOnly}</div>
-                            <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                <div style="width: 24px; height: 24px; border-radius: 50%; background: ${teamColor}; color: white; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: bold;" title="${team ? team.name : 'Unknown'}">
-                                    ${teamInitial}
-                                </div>
+                const warning = document.getElementById('qd-answered-warning');
+                if (q.status === 'answered') {
+                    const team = TeamService.getTeam(q.answeredBy);
+                    warning.innerHTML = `
+                        <div class="callout callout-danger answered-callout">
+                            ${UI.icon('alert')}
+                            <div>
+                                <strong>This question has already been answered</strong>
+                                Answered by ${team
+                                    ? `<span class="team-name" style="vertical-align: middle;"><span class="team-dot" style="background: ${UI.teamColor(team)};"></span>${UI.escapeHtml(team.name)}</span>`
+                                    : 'a team that no longer exists'}
                             </div>
                         </div>
-                        `;
-                    }).join('');
-                }
-            }
-
-            function showCelebrationLeaderboard(winnerId, marksAwarded) {
-                const teams = window.QuizBowl.Services.TeamService.getAllTeams();
-                const maxScore = teams.length > 0 ? Math.max(...teams.map(t => t.score)) : 1;
-                const safeMaxScore = maxScore > 0 ? maxScore : 1;
-
-                teams.sort((a, b) => b.score - a.score);
-
-                const container = document.getElementById('celebration-leaderboard');
-                container.innerHTML = '';
-
-                teams.forEach(t => {
-                    const isWinner = t.id === winnerId;
-                    const newScore = t.score;
-                    const oldScore = isWinner ? Math.max(0, newScore - marksAwarded) : newScore;
-
-                    const oldWidth = Math.max(0, (oldScore / safeMaxScore) * 100);
-                    const newWidth = Math.max(0, (newScore / safeMaxScore) * 100);
-
-                    const row = document.createElement('div');
-                    row.style.display = 'flex';
-                    row.style.alignItems = 'center';
-                    row.style.gap = '1rem';
-                    row.style.width = '100%';
-
-                    row.innerHTML = `
-                        <div style="color: white; font-size: 1.5rem; font-weight: bold; width: 150px; text-align: right; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">${t.name}</div>
-                        <div style="flex: 1; height: 30px; background: rgba(255,255,255,0.2); border-radius: 15px; overflow: hidden; position: relative;">
-                            <div class="bar-fill" style="width: ${oldWidth}%; height: 100%; background-color: ${t.color || '#3b82f6'}; transition: width 1s cubic-bezier(0.4, 0, 0.2, 1); border-radius: 15px;"></div>
-                        </div>
-                        <div style="color: var(--color-accent); font-size: 1.5rem; font-weight: bold; width: 60px;" class="score-text" data-score="${newScore}">${oldScore}</div>
                     `;
-                    container.appendChild(row);
-
-                    if (isWinner) {
-                        setTimeout(() => {
-                            const fill = row.querySelector('.bar-fill');
-                            const scoreText = row.querySelector('.score-text');
-                            fill.style.width = `${newWidth}%`;
-
-                            let currentNumber = oldScore;
-                            const duration = 1000;
-                            const steps = 30;
-                            const increment = (newScore - oldScore) / steps;
-                            const stepTime = Math.abs(Math.floor(duration / steps));
-
-                            const timer = setInterval(() => {
-                                currentNumber += increment;
-                                if (currentNumber >= newScore) {
-                                    clearInterval(timer);
-                                    currentNumber = newScore;
-                                }
-                                scoreText.textContent = Math.floor(currentNumber);
-                            }, stepTime);
-                        }, 500);
-                    }
-                });
-            }
-
-            const answeredSidebar = document.getElementById('answered-sidebar');
-            const answeredToggleBtn = document.getElementById('answered-toggle-btn');
-
-            answeredToggleBtn.addEventListener('click', () => {
-                answeredSidebar.classList.toggle('active');
-                answeredToggleBtn.classList.toggle('active');
-                if (answeredSidebar.classList.contains('active')) {
-                    updateSidebar();
-                }
-            });
-
-            typeSelect.addEventListener('change', () => {
-                updateSidebar();
-            });
-
-            sidebarQList.addEventListener('click', (e) => {
-                if (e.target.classList.contains('available-q-badge')) {
-                    const qId = e.target.getAttribute('data-id');
-                    displayQuestion(qId);
-                    sidebar.classList.remove('active');
-                    sidebarToggleBtn.classList.remove('active');
-                }
-            });
-
-            document.getElementById('answered-q-list').addEventListener('click', (e) => {
-                const item = e.target.closest('.answered-q-item');
-                if (item) {
-                    // Logic to find qId could be added if needed, skipping for brevity
-                }
-            });
-
-            function triggerSearch() {
-                const query = searchInput.value.trim();
-                const type = typeSelect.value;
-
-                if (!query) return;
-
-                // If they typed just a number, pad it and prefix it
-                let finalId = query;
-                if (!isNaN(query)) {
-                    const prefix = TYPE_PREFIXES[type];
-                    finalId = prefix + String(query).padStart(3, '0');
                 } else {
-                    // They might have typed THRY001 directly, just use it capitalized
-                    finalId = query.toUpperCase();
+                    warning.innerHTML = '';
                 }
 
-                displayQuestion(finalId);
-                searchInput.value = '';
-                searchInput.blur();
-            }
-
-            btnSearch.addEventListener('click', triggerSearch);
-            searchInput.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    triggerSearch();
-                }
-            });
-
-            function displayQuestion(id) {
-                const q = window.QuizBowl.Services.QuestionService.getQuestion(id);
-                if (!q) {
-                    alert('Question not found: ' + id);
-                    return;
-                }
-
-                document.getElementById('qd-id').textContent = 'Question ' + q.id;
-                document.getElementById('qd-category').textContent = q.category;
-                document.getElementById('qd-marks').textContent = q.marks + ' pts';
-
-                let warningHtml = '';
-                if (q.status === 'answered') {
-                    warningHtml = `
-                        <div style="background: rgba(239, 68, 68, 0.15); border: 2px solid var(--color-danger); padding: var(--spacing-md); margin-bottom: var(--spacing-xl); border-radius: var(--border-radius); text-align: center;">
-                            <h2 style="color: var(--color-danger); margin: 0; font-size: 2rem;">⚠️ QUESTION ALREADY ANSWERED ⚠️</h2>
-                            <p style="margin: 0; font-size: 1.25rem; margin-top: 0.5rem;">Answered by: <strong>Team ${q.answeredBy}</strong></p>
-                        </div>
-                    `;
-                }
-
-                document.getElementById('qd-body').innerHTML = warningHtml + q.question;
+                document.getElementById('qd-body').innerHTML = q.question;
 
                 const optionsContainer = document.getElementById('qd-options');
                 if (q.type === 'mcq' && q.options) {
                     optionsContainer.innerHTML = Object.entries(q.options).map(([key, val]) => `
-                        <div class="option-card">
-                            <strong style="color: var(--color-primary);">${key}:</strong> ${val}
+                        <div class="option-card ${key === q.correctAnswer ? 'correct' : ''}">
+                            <span class="option-letter">${key}</span>
+                            <span>${val}</span>
                         </div>
                     `).join('');
                 } else {
@@ -711,24 +429,16 @@
                 // Prepare correct answer display
                 const correctAnswerElem = document.getElementById('qd-correct-answer');
                 if (q.type === 'mcq' && q.options && q.correctAnswer && q.options[q.correctAnswer]) {
-                    correctAnswerElem.innerHTML = `<strong>${q.correctAnswer}:</strong> ${q.options[q.correctAnswer]}`;
+                    correctAnswerElem.innerHTML = `${q.correctAnswer}: ${q.options[q.correctAnswer]}`;
                 } else {
-                    correctAnswerElem.innerHTML = q.correctAnswer || 'Not provided';
+                    const answer = q.correctAnswer || q.expectedAnswer;
+                    correctAnswerElem.innerHTML = answer ? `${answer} ${q.unit ? UI.escapeHtml(q.unit) : ''}` : 'Not provided';
                 }
 
-                // Reset answer section visibility
-                answerSection.style.display = 'none';
-                btnToggleAnswer.textContent = 'Show Answer';
+                setAnswerVisible(false);
+                setBlurred(false);
+                timesUp.hidden = true;
 
-                // Trigger MathJax re-render
-                if (window.MathJax) {
-                    MathJax.typesetPromise([display]).catch(err => console.error(err));
-                }
-
-                btnBonus.style.display = 'none';
-                btnBonus.setAttribute('data-qid', q.id);
-
-                const scoringControls = document.getElementById('qd-scoring-controls');
                 if (q.status !== 'answered') {
                     const settings = window.QuizBowl.Data.SettingsDB.getSettings();
                     let duration = 15;
@@ -739,106 +449,171 @@
 
                     startTimer(duration);
 
-                    const teams = window.QuizBowl.Services.TeamService.getAllTeams();
-                    const container = document.getElementById('team-buttons-container');
+                    const teams = TeamService.getAllTeams();
+                    document.getElementById('team-buttons-container').innerHTML = teams.length
+                        ? teams.map(t => `
+                            <button class="team-score-btn" data-team="${UI.escapeHtml(t.id)}" style="--team: ${UI.teamColor(t)};">
+                                <span class="team-avatar">${UI.escapeHtml(UI.initials(t.name))}</span>
+                                ${UI.escapeHtml(t.name)}
+                            </button>
+                        `).join('')
+                        : `<p class="text-muted">No teams registered. Add teams from the admin page.</p>`;
 
-                    container.innerHTML = teams.map(t => `
-                        <button class="team-score-btn" data-team="${t.id}" data-qid="${q.id}" 
-                            style="padding: 1rem 2rem; font-size: 1.25rem; font-weight: bold; background: var(--bg-surface); border: 2px solid var(--color-primary); color: var(--color-primary); border-radius: var(--border-radius-lg); cursor: pointer; transition: all 0.2s ease; box-shadow: 0 4px 6px rgba(0,0,0,0.1);"
-                            onmouseover="this.style.background='var(--color-primary)'; this.style.color='#fff'; this.style.transform='translateY(-2px)';"
-                            onmouseout="this.style.background='var(--bg-surface)'; this.style.color='var(--color-primary)'; this.style.transform='translateY(0)';">
-                            ${t.name}
-                        </button>
-                    `).join('');
-
-                    scoringControls.style.display = 'flex';
+                    scoringControls.hidden = false;
                 } else {
                     stopTimer();
-                    timerDisplay.style.display = 'none';
-                    scoringControls.style.display = 'none';
+                    timerEl.hidden = true;
+                    scoringControls.hidden = true;
                 }
 
-                document.querySelector('.search-container').style.display = 'none';
-                display.style.display = 'block';
-                setBlurred(false);
-                btnCancelDisplay.style.display = 'inline-block';
-                btnToggleAnswer.style.display = 'inline-block';
+                picker.hidden = true;
+                display.hidden = false;
+                btnToggleAnswer.focus();
+
+                // Trigger MathJax re-render
+                if (window.MathJax && MathJax.typesetPromise) {
+                    MathJax.typesetPromise([display]).catch(err => console.error(err));
+                }
+                return true;
             }
 
-            // Use event delegation for the team score buttons
+            // ---------- Scoring & celebration ----------
             document.getElementById('team-buttons-container').addEventListener('click', (e) => {
                 const btn = e.target.closest('.team-score-btn');
-                if (!btn) return;
+                if (!btn || !currentQuestionId) return;
 
                 const teamId = btn.getAttribute('data-team');
-                const qId = btn.getAttribute('data-qid');
-
-                if (!teamId || !qId) return;
-
-                const q = window.QuizBowl.Services.QuestionService.getQuestion(qId);
-                const t = window.QuizBowl.Services.TeamService.getTeam(teamId);
-
+                const q = QuestionService.getQuestion(currentQuestionId);
+                const t = TeamService.getTeam(teamId);
                 if (!q || !t) return;
 
                 // Record Score (assuming correct)
                 stopTimer();
-                window.QuizBowl.Services.ScoringService.awardMarks(qId, teamId, q.marks, 'correct');
-
-                updateSidebar(); // Refresh available list in case it's open
-
-                // Hide scoring controls
-                document.getElementById('qd-scoring-controls').style.display = 'none';
-
-                // Show celebration and leaderboard
-                showCelebrationLeaderboard(t.id, q.marks);
-
-                const overlay = document.getElementById('celebration-overlay');
-                document.getElementById('celebration-text').textContent = `🎉 Team ${t.name} got it right! 🎉`;
-                overlay.style.display = 'flex';
-
-                // Fire confetti
-                var duration = 3 * 1000;
-                var animationEnd = Date.now() + duration;
-                var defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 10000 };
-
-                function randomInRange(min, max) {
-                    return Math.random() * (max - min) + min;
+                try {
+                    window.QuizBowl.Services.ScoringService.awardMarks(q.id, teamId, q.marks, 'correct');
+                } catch (err) {
+                    Toast.show(err.message, 'danger');
+                    return;
                 }
 
-                var interval = setInterval(function () {
-                    var timeLeft = animationEnd - Date.now();
+                scoringControls.hidden = true;
+                setBlurred(false);
+                timesUp.hidden = true;
+                setAnswerVisible(true);
+                renderScoreboard();
 
-                    if (timeLeft <= 0) {
-                        return clearInterval(interval);
+                showCelebration(t, q.marks);
+            });
+
+            function showCelebration(team, marksAwarded) {
+                const teams = TeamService.getAllTeams();
+                const maxScore = teams.length > 0 ? Math.max(...teams.map(t => t.score)) : 1;
+                const safeMaxScore = maxScore > 0 ? maxScore : 1;
+
+                document.getElementById('celebration-text').textContent = `🎉 ${team.name} got it right!`;
+                document.getElementById('celebration-sub').textContent = `+${marksAwarded} points`;
+
+                const container = document.getElementById('celebration-leaderboard');
+                container.innerHTML = '';
+
+                teams.forEach(t => {
+                    const isWinner = t.id === team.id;
+                    const newScore = t.score;
+                    const oldScore = isWinner ? newScore - marksAwarded : newScore;
+                    const oldWidth = Math.max(0, (oldScore / safeMaxScore) * 100);
+                    const newWidth = Math.max(0, (newScore / safeMaxScore) * 100);
+
+                    const row = document.createElement('div');
+                    row.className = `celebration-row ${isWinner ? 'winner' : ''}`;
+                    row.innerHTML = `
+                        <div class="name">${UI.escapeHtml(t.name)}</div>
+                        <div class="track"><div class="fill" style="width: ${oldWidth}%; background: ${UI.teamColor(t)};"></div></div>
+                        <div class="score-text">${oldScore}</div>
+                    `;
+                    container.appendChild(row);
+
+                    if (isWinner) {
+                        setTimeout(() => {
+                            row.querySelector('.fill').style.width = `${newWidth}%`;
+                            const scoreText = row.querySelector('.score-text');
+                            const start = performance.now();
+                            const tick = (now) => {
+                                const progress = Math.min(1, (now - start) / 1000);
+                                scoreText.textContent = Math.round(oldScore + (newScore - oldScore) * progress);
+                                if (progress < 1) requestAnimationFrame(tick);
+                            };
+                            requestAnimationFrame(tick);
+                        }, 500);
                     }
+                });
 
-                    var particleCount = 50 * (timeLeft / duration);
+                overlay.hidden = false;
+                fireConfetti();
+            }
+
+            function fireConfetti() {
+                if (typeof confetti !== 'function') return;
+                const duration = 3 * 1000;
+                const animationEnd = Date.now() + duration;
+                const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 10000 };
+                const randomInRange = (min, max) => Math.random() * (max - min) + min;
+
+                clearInterval(confettiInterval);
+                confettiInterval = setInterval(() => {
+                    const timeLeft = animationEnd - Date.now();
+                    if (timeLeft <= 0) return clearInterval(confettiInterval);
+
+                    const particleCount = 50 * (timeLeft / duration);
                     confetti(Object.assign({}, defaults, { particleCount, origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 } }));
                     confetti(Object.assign({}, defaults, { particleCount, origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 } }));
                 }, 250);
-            });
+            }
 
-            document.getElementById('celebration-overlay').addEventListener('click', function () {
-                this.style.display = 'none';
-                stopTimer();
-                // Reset question view
-                document.getElementById('question-display').style.display = 'none';
-                document.querySelector('.search-container').style.display = 'flex';
-                document.getElementById('public-search').focus();
-            });
+            function closeCelebration() {
+                overlay.hidden = true;
+                clearInterval(confettiInterval);
+                showPicker();
+            }
 
+            overlay.addEventListener('click', closeCelebration);
+
+            // ---------- Keyboard shortcuts ----------
             document.addEventListener('keydown', (e) => {
+                const typing = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA';
+
                 if (e.key === 'Escape') {
-                    if (document.getElementById('celebration-overlay').style.display === 'flex') {
-                        document.getElementById('celebration-overlay').click();
-                    } else if (display.style.display === 'block') {
-                        stopTimer();
-                        display.style.display = 'none';
-                        document.querySelector('.search-container').style.display = 'flex';
-                        document.getElementById('public-search').focus();
-                    }
+                    if (!overlay.hidden) closeCelebration();
+                    else if (!display.hidden) showPicker();
+                    return;
+                }
+                if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+                    e.preventDefault();
+                    if (!display.hidden) showPicker();
+                    searchInput.focus();
+                    return;
+                }
+                if (typing || e.ctrlKey || e.metaKey || e.altKey) return;
+
+                if (e.key.toLowerCase() === 'f') toggleFullscreen();
+                if (e.key.toLowerCase() === 'a' && !display.hidden && overlay.hidden) btnToggleAnswer.click();
+                if (!overlay.hidden && (e.key === 'Enter' || e.key === ' ')) {
+                    e.preventDefault();
+                    closeCelebration();
                 }
             });
+
+            // Refresh when the admin page changes data in another tab
+            window.addEventListener('storage', (e) => {
+                if (!e.key || !e.key.startsWith('quizbowl_')) return;
+                if (e.key === 'quizbowl_theme') {
+                    window.QuizBowl.Theme.set(e.newValue === 'dark');
+                    return;
+                }
+                renderScoreboard();
+                if (!picker.hidden) renderPicker();
+            });
+
+            showPicker();
         });
     </script>
 </body>

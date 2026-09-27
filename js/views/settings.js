@@ -2,65 +2,92 @@
     window.QuizBowl.Views.Settings = {
         render: function(container) {
             const SettingsDB = window.QuizBowl.Data.SettingsDB;
+            const UI = window.QuizBowl.Utils.UI;
             const settings = SettingsDB.getSettings();
 
-            container.innerHTML = `
-                <div class="header" style="margin-bottom: 2rem;">
-                    <h2>Quiz Settings</h2>
-                    <p class="subtitle" style="color: var(--text-secondary);">Configure global timers and application behavior</p>
+            const row = (id, label, value, min, unit, type) => `
+                <div class="settings-row">
+                    <label for="${id}">${type ? UI.typeChip(type) : UI.icon('zap')} ${label}</label>
+                    <div class="input-group">
+                        <input type="number" id="${id}" class="form-control" value="${value}" min="${min}">
+                        <span class="input-addon">${unit}</span>
+                    </div>
                 </div>
+            `;
 
-                <div class="content-section" style="max-width: 600px; background: var(--bg-surface); padding: var(--spacing-xl); border-radius: var(--border-radius-lg); border: 1px solid var(--border-color);">
+            container.innerHTML = `
+                <div class="settings-view">
+                    <div class="page-header">
+                        <div>
+                            <h1>Quiz Settings</h1>
+                            <p>Configure countdown timers and default marks for each question type.</p>
+                        </div>
+                    </div>
+
                     <form id="settings-form">
-                        <div class="form-group" style="margin-bottom: 1.5rem;">
-                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Theory Questions Time (seconds)</label>
-                            <input type="number" id="setting-theory" class="form-control" value="${settings.theoryTime}" min="0" style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: var(--border-radius);">
-                        </div>
-                        <div class="form-group" style="margin-bottom: 1.5rem;">
-                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Calculation Questions Time (seconds)</label>
-                            <input type="number" id="setting-calculation" class="form-control" value="${settings.calculationTime}" min="0" style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: var(--border-radius);">
-                        </div>
-                        <div class="form-group" style="margin-bottom: 1.5rem;">
-                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Multiple Choice Time (seconds)</label>
-                            <input type="number" id="setting-mcq" class="form-control" value="${settings.mcqTime}" min="0" style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: var(--border-radius);">
-                        </div>
-                        <div class="form-group" style="margin-bottom: 1.5rem;">
-                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">True/False Time (seconds)</label>
-                            <input type="number" id="setting-true_false" class="form-control" value="${settings.true_falseTime}" min="0" style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: var(--border-radius);">
-                        </div>
-                        <div class="form-group" style="margin-bottom: 2rem;">
-                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Bonus Time (seconds)</label>
-                            <input type="number" id="setting-bonus" class="form-control" value="${settings.bonusTime}" min="0" style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: var(--border-radius);">
-                        </div>
-                        
-                        <h3 style="margin-top: 2rem; margin-bottom: 1rem;">Default Marks</h3>
-                        
-                        <div class="form-group" style="margin-bottom: 1.5rem;">
-                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Theory Questions Default Marks</label>
-                            <input type="number" id="setting-theory-marks" class="form-control" value="${settings.theoryMarks}" min="1" style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: var(--border-radius);">
-                        </div>
-                        <div class="form-group" style="margin-bottom: 1.5rem;">
-                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Calculation Questions Default Marks</label>
-                            <input type="number" id="setting-calculation-marks" class="form-control" value="${settings.calculationMarks}" min="1" style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: var(--border-radius);">
-                        </div>
-                        <div class="form-group" style="margin-bottom: 1.5rem;">
-                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Multiple Choice Default Marks</label>
-                            <input type="number" id="setting-mcq-marks" class="form-control" value="${settings.mcqMarks}" min="1" style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: var(--border-radius);">
-                        </div>
-                        <div class="form-group" style="margin-bottom: 2rem;">
-                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">True/False Default Marks</label>
-                            <input type="number" id="setting-tf-marks" class="form-control" value="${settings.true_falseMarks}" min="1" style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: var(--border-radius);">
+                        <div class="settings-grid">
+                            <section class="card">
+                                <div class="card-header">
+                                    <div>
+                                        <h2>Timers</h2>
+                                        <p>Countdown shown on the public display</p>
+                                    </div>
+                                    <span class="stat-icon info" style="width: 36px; height: 36px;">${UI.icon('timer')}</span>
+                                </div>
+                                ${row('setting-theory', 'Theory', settings.theoryTime, 0, 'sec', 'theory')}
+                                ${row('setting-calculation', 'Calculation', settings.calculationTime, 0, 'sec', 'calculation')}
+                                ${row('setting-mcq', 'Multiple Choice', settings.mcqTime, 0, 'sec', 'mcq')}
+                                ${row('setting-true_false', 'True / False', settings.true_falseTime, 0, 'sec', 'true_false')}
+                                ${row('setting-bonus', 'Bonus time', settings.bonusTime, 0, 'sec')}
+                            </section>
+
+                            <section class="card">
+                                <div class="card-header">
+                                    <div>
+                                        <h2>Default Marks</h2>
+                                        <p>Points awarded per question type</p>
+                                    </div>
+                                    <span class="stat-icon accent" style="width: 36px; height: 36px;">${UI.icon('award')}</span>
+                                </div>
+                                ${row('setting-theory-marks', 'Theory', settings.theoryMarks, 1, 'pts', 'theory')}
+                                ${row('setting-calculation-marks', 'Calculation', settings.calculationMarks, 1, 'pts', 'calculation')}
+                                ${row('setting-mcq-marks', 'Multiple Choice', settings.mcqMarks, 1, 'pts', 'mcq')}
+                                ${row('setting-tf-marks', 'True / False', settings.true_falseMarks, 1, 'pts', 'true_false')}
+                                <div class="callout callout-info" style="margin-top: var(--spacing-md);">
+                                    ${UI.icon('info')}
+                                    <span>Saving applies these marks to <strong style="display: inline;">all existing questions</strong> of each type.</span>
+                                </div>
+                            </section>
                         </div>
 
-                        <button type="submit" class="btn btn-primary" style="padding: 0.75rem 2rem; font-size: 1rem;">Save Settings</button>
-                        <span id="settings-saved-msg" style="color: var(--color-success); margin-left: 1rem; display: none; font-weight: bold;">Settings Saved!</span>
+                        <div class="settings-actions">
+                            <span class="form-hint" id="settings-status">No unsaved changes</span>
+                            <button type="button" class="btn btn-secondary" id="btn-settings-discard" disabled>Discard</button>
+                            <button type="submit" class="btn btn-primary" id="btn-settings-save" disabled>${UI.icon('check')} Save Settings</button>
+                        </div>
                     </form>
                 </div>
             `;
 
-            document.getElementById('settings-form').addEventListener('submit', (e) => {
+            const form = document.getElementById('settings-form');
+            const btnSave = document.getElementById('btn-settings-save');
+            const btnDiscard = document.getElementById('btn-settings-discard');
+            const status = document.getElementById('settings-status');
+
+            // Enable save/discard only once something has changed
+            const initialValues = [...form.querySelectorAll('input')].map(i => i.value).join('|');
+            form.addEventListener('input', () => {
+                const dirty = [...form.querySelectorAll('input')].map(i => i.value).join('|') !== initialValues;
+                btnSave.disabled = !dirty;
+                btnDiscard.disabled = !dirty;
+                status.textContent = dirty ? 'You have unsaved changes' : 'No unsaved changes';
+                status.style.color = dirty ? 'var(--color-warning)' : '';
+            });
+            btnDiscard.addEventListener('click', () => this.render(container));
+
+            form.addEventListener('submit', (e) => {
                 e.preventDefault();
-                
+
                 const newSettings = {
                     theoryTime: parseInt(document.getElementById('setting-theory').value) || 0,
                     calculationTime: parseInt(document.getElementById('setting-calculation').value) || 0,
@@ -72,39 +99,41 @@
                     mcqMarks: parseInt(document.getElementById('setting-mcq-marks').value) || 2,
                     true_falseMarks: parseInt(document.getElementById('setting-tf-marks').value) || 1
                 };
-                
+
                 SettingsDB.saveSettings(newSettings);
-                
+
                 // Update marks for all existing questions based on type
                 const QuestionsDB = window.QuizBowl.Data.QuestionsDB;
+                let updatedCount = 0;
                 if (QuestionsDB) {
                     const questions = QuestionsDB.getAll();
-                    let updated = false;
-                    
+
                     questions.forEach(q => {
                         if (q.type === 'theory' && q.marks !== newSettings.theoryMarks) {
                             q.marks = newSettings.theoryMarks;
-                            updated = true;
+                            updatedCount++;
                         } else if (q.type === 'calculation' && q.marks !== newSettings.calculationMarks) {
                             q.marks = newSettings.calculationMarks;
-                            updated = true;
+                            updatedCount++;
                         } else if (q.type === 'mcq' && q.marks !== newSettings.mcqMarks) {
                             q.marks = newSettings.mcqMarks;
-                            updated = true;
+                            updatedCount++;
                         } else if (q.type === 'true_false' && q.marks !== newSettings.true_falseMarks) {
                             q.marks = newSettings.true_falseMarks;
-                            updated = true;
+                            updatedCount++;
                         }
                     });
-                    
-                    if (updated) {
+
+                    if (updatedCount > 0) {
                         QuestionsDB.saveAll(questions);
                     }
                 }
-                
-                const msg = document.getElementById('settings-saved-msg');
-                msg.style.display = 'inline-block';
-                setTimeout(() => msg.style.display = 'none', 3000);
+
+                window.QuizBowl.Components.Toast.show(
+                    updatedCount > 0 ? `Settings saved. Marks updated on ${updatedCount} question${updatedCount === 1 ? '' : 's'}.` : 'Settings saved.',
+                    'success'
+                );
+                this.render(container);
             });
         }
     };

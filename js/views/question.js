@@ -5,155 +5,232 @@
 (function() {
     window.QuizBowl.Views.QuestionDetail = {
         render: function(container, id) {
+            const UI = window.QuizBowl.Utils.UI;
             const question = window.QuizBowl.Services.QuestionService.getQuestion(id);
             if (!question) {
-                container.innerHTML = `<div style="padding: 2rem; color: var(--color-danger);">Error: Question ${id} not found.</div>`;
+                container.innerHTML = `
+                    <div class="card">
+                        ${UI.emptyState('search', `Question ${UI.escapeHtml(id || '')} not found`,
+                            'It may have been deleted or renumbered.',
+                            `<a href="#questions" class="btn btn-primary">Back to Question Bank</a>`)}
+                    </div>
+                `;
                 return;
             }
 
             const isAnswered = question.status === 'answered';
-            
+            const teams = window.QuizBowl.Services.TeamService.getAllTeams();
+            const answeredTeam = isAnswered ? window.QuizBowl.Data.TeamsDB.getById(question.answeredBy) : null;
+
             let optionsHtml = '';
             if (question.type === 'mcq' && question.options) {
                 optionsHtml = `
-                    <div style="margin-top: var(--spacing-lg); display: grid; gap: var(--spacing-sm);">
+                    <div class="qd-options">
                         ${Object.entries(question.options).map(([key, val]) => `
-                            <div style="padding: var(--spacing-md); border: 1px solid var(--border-color); border-radius: var(--border-radius); background: var(--bg-main);">
-                                <strong>${key}:</strong> ${val}
+                            <div class="qd-option">
+                                <span class="mcq-letter">${key}</span>
+                                <span>${val}</span>
                             </div>
                         `).join('')}
                     </div>
                 `;
             }
 
+            let correctAnswerText = question.correctAnswer;
+            if (question.type === 'mcq' && question.options && question.options[question.correctAnswer]) {
+                correctAnswerText = `${question.correctAnswer} — ${question.options[question.correctAnswer]}`;
+            }
+
             const html = `
-                <div class="question-detail-view" style="max-width: 900px; margin: 0 auto;">
-                    <div class="questions-header" style="display: flex; justify-content: space-between; align-items: flex-start;">
+                <div class="question-detail-view">
+                    <button class="back-link" onclick="window.history.back()">${UI.icon('back')} Back</button>
+                    <div class="page-header">
                         <div>
-                            <button class="btn" style="background: var(--bg-surface); border: 1px solid var(--border-color); margin-bottom: var(--spacing-md);" onclick="window.history.back()">← Back</button>
-                            <h1 style="display: flex; align-items: center; gap: var(--spacing-sm);">
-                                Question ${question.id}
-                                <span class="badge badge-${question.status}">${question.status.toUpperCase()}</span>
+                            <h1 class="qd-title">
+                                Question ${UI.escapeHtml(question.id)}
+                                ${UI.statusBadge(question.status)}
                             </h1>
+                            <div class="qd-meta">
+                                ${UI.typeChip(question.type)}
+                                <span>${UI.escapeHtml(question.category || 'Uncategorised')}</span>
+                                <span class="sep">•</span>
+                                <strong style="color: var(--text-primary);">${question.marks} pts</strong>
+                            </div>
                         </div>
-                        <div>
-                            <button class="btn btn-danger" id="btn-delete-question" style="background: var(--color-danger); color: white; border: none; padding: var(--spacing-sm) var(--spacing-md); border-radius: var(--border-radius); cursor: pointer;">Delete Question</button>
+                        <div class="page-actions">
+                            <button class="btn btn-danger-ghost" id="btn-delete-question">${UI.icon('trash')} Delete</button>
                         </div>
                     </div>
 
                     ${isAnswered ? `
-                        <div style="background: rgba(239, 68, 68, 0.1); border-left: 4px solid var(--color-danger); padding: var(--spacing-md); margin-bottom: var(--spacing-lg); border-radius: 0 var(--border-radius) var(--border-radius) 0;">
-                            <h3 style="color: var(--color-danger); margin-bottom: 0.25rem;">⚠️ QUESTION ALREADY ANSWERED</h3>
-                            <p>Answered by: <strong>Team ${question.answeredBy}</strong></p>
+                        <div class="callout callout-warning" style="margin-bottom: var(--spacing-lg);">
+                            ${UI.icon('alert')}
+                            <div>
+                                <strong>This question has already been answered</strong>
+                                Scored by
+                                ${answeredTeam
+                                    ? `<span class="team-name" style="vertical-align: middle;"><span class="team-dot" style="background: ${UI.teamColor(answeredTeam)};"></span>${UI.escapeHtml(answeredTeam.name)}</span>`
+                                    : 'a team that no longer exists'}
+                                ${question.answeredAt ? `<span class="text-muted">· ${UI.timeAgo(question.answeredAt)}</span>` : ''}
+                            </div>
                         </div>
                     ` : ''}
 
-                    <div style="background: var(--bg-surface); padding: var(--spacing-xl); border-radius: var(--border-radius); box-shadow: var(--shadow-sm); border: 1px solid var(--border-color); margin-bottom: var(--spacing-lg);">
-                        <div style="font-size: 1.25rem; font-weight: 500; line-height: 1.6; margin-bottom: var(--spacing-lg);">
+                    <div class="card">
+                        <div class="qd-question">
                             ${question.question}
                         </div>
-                        
                         ${optionsHtml}
                     </div>
 
                     <!-- Administrator View (Hidden in Display Mode) -->
-                    <div class="admin-controls" style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--spacing-lg);">
-                        
-                        <div style="background: var(--bg-surface); padding: var(--spacing-lg); border-radius: var(--border-radius); border: 1px solid var(--border-color);">
-                            <h3 style="margin-bottom: var(--spacing-md); color: var(--color-primary);">Answer Key</h3>
-                            ${question.correctAnswer ? `<p style="margin-bottom: var(--spacing-sm);"><strong>Correct Answer:</strong> <span style="color: var(--color-success); font-weight: bold; font-size: 1.1rem;">${question.correctAnswer}</span></p>` : ''}
-                            ${question.expectedAnswer ? `<p style="margin-bottom: var(--spacing-sm);"><strong>Expected Answer:</strong> ${question.expectedAnswer} ${question.unit ? question.unit : ''}</p>` : ''}
-                            <p><strong>Explanation:</strong></p>
-                            <div style="background: var(--bg-main); padding: var(--spacing-sm); border-radius: var(--border-radius-sm); margin-top: var(--spacing-xs); font-size: 0.9rem;">
-                                ${question.explanation || 'No explanation provided.'}
+                    <div class="admin-controls qd-panels">
+                        <section class="card">
+                            <div class="card-header">
+                                <h2>Answer Key</h2>
+                                <span class="badge">Admin only</span>
                             </div>
-                        </div>
+                            ${correctAnswerText ? `
+                                <div class="answer-row">
+                                    <span class="form-label">Correct answer</span>
+                                    <div class="answer-value">${correctAnswerText}</div>
+                                </div>
+                            ` : ''}
+                            ${question.expectedAnswer ? `
+                                <div class="answer-row">
+                                    <span class="form-label">Expected answer</span>
+                                    <div class="answer-value">${question.expectedAnswer} ${question.unit ? UI.escapeHtml(question.unit) : ''}</div>
+                                </div>
+                            ` : ''}
+                            <div class="answer-row">
+                                <span class="form-label">Explanation</span>
+                                <div class="explanation-box">
+                                    ${question.explanation || '<span class="text-muted">No explanation provided.</span>'}
+                                </div>
+                            </div>
+                        </section>
 
-                        <div style="background: var(--bg-surface); padding: var(--spacing-lg); border-radius: var(--border-radius); border: 1px solid var(--border-color);">
-                            <h3 style="margin-bottom: var(--spacing-md); color: var(--color-primary);">Scoring</h3>
-                            
-                            ${!isAnswered ? `
+                        <section class="card">
+                            <div class="card-header">
+                                <h2>Scoring</h2>
+                            </div>
+
+                            ${!isAnswered ? (teams.length ? `
                                 <div class="form-group">
-                                    <label>Select Team</label>
+                                    <label for="score-team">Team</label>
                                     <select id="score-team" class="form-control">
-                                        <option value="">-- Choose Team --</option>
-                                        ${window.QuizBowl.Services.TeamService.getAllTeams().map(t => `<option value="${t.id}">${t.name}</option>`).join('')}
+                                        <option value="">Choose a team…</option>
+                                        ${teams.map(t => `<option value="${UI.escapeHtml(t.id)}">${UI.escapeHtml(t.name)} (${t.score} pts)</option>`).join('')}
                                     </select>
                                 </div>
                                 <div class="form-group">
-                                    <label>Result</label>
-                                    <select id="score-result" class="form-control">
-                                        <option value="correct">Correct</option>
-                                        <option value="partial">Partially Correct</option>
-                                        <option value="wrong">Wrong</option>
-                                    </select>
+                                    <span class="form-label">Result</span>
+                                    <div class="result-options" id="score-result">
+                                        <label class="result-option"><input type="radio" name="score-result" value="correct" checked><span>Correct</span></label>
+                                        <label class="result-option"><input type="radio" name="score-result" value="partial"><span>Partial</span></label>
+                                        <label class="result-option"><input type="radio" name="score-result" value="wrong"><span>Wrong</span></label>
+                                    </div>
                                 </div>
                                 <div class="form-group">
-                                    <label>Marks Awarded (Max: ${question.marks})</label>
-                                    <input type="number" id="score-marks" class="form-control" value="${question.marks}" min="0" max="${question.marks}">
+                                    <label for="score-marks">Marks awarded</label>
+                                    <div class="input-group">
+                                        <input type="number" id="score-marks" class="form-control" value="${question.marks}" min="0" max="${question.marks}">
+                                        <span class="input-addon">of ${question.marks}</span>
+                                    </div>
                                 </div>
-                                <button class="btn btn-primary" id="btn-submit-score" style="width: 100%; margin-top: var(--spacing-sm);">Submit Score</button>
-                            ` : `
-                                <p style="color: var(--text-muted);">This question has already been scored.</p>
-                                <button class="btn" id="btn-reset-status" style="width: 100%; margin-top: var(--spacing-md); background: var(--bg-main); border: 1px solid var(--border-color);">Reset Question Status</button>
+                                <button class="btn btn-primary btn-block" id="btn-submit-score">${UI.icon('check')} Submit Score</button>
+                            ` : UI.emptyState('teams', 'No teams registered', 'Add teams before scoring questions.',
+                                `<a href="#teams" class="btn btn-primary btn-sm">Manage Teams</a>`)
+                            ) : `
+                                <p class="text-muted" style="font-size: 0.9rem;">Resetting makes the question available again and removes the awarded points from the team.</p>
+                                <button class="btn btn-secondary btn-block" id="btn-reset-status" style="margin-top: var(--spacing-md);">${UI.icon('reset')} Reset Question Status</button>
                             `}
-                        </div>
+                        </section>
                     </div>
                 </div>
             `;
-            
+
             container.innerHTML = html;
 
             // Render math
-            if (window.MathJax) {
+            if (window.MathJax && MathJax.typesetPromise) {
                 MathJax.typesetPromise([container]).catch(err => console.log(err));
             }
 
+            const Modal = window.QuizBowl.Components.Modal;
+            const Toast = window.QuizBowl.Components.Toast;
+
             // Bind scoring events
-            if (!isAnswered) {
-                document.getElementById('btn-submit-score').addEventListener('click', () => {
-                    const teamId = document.getElementById('score-team').value;
-                    const result = document.getElementById('score-result').value;
-                    const marks = parseInt(document.getElementById('score-marks').value, 10);
+            const btnSubmit = document.getElementById('btn-submit-score');
+            if (btnSubmit) {
+                const marksInput = document.getElementById('score-marks');
+
+                // Keep marks in sync with the chosen result
+                document.getElementById('score-result').addEventListener('change', (e) => {
+                    if (e.target.value === 'correct') marksInput.value = question.marks;
+                    else if (e.target.value === 'wrong') marksInput.value = 0;
+                    else marksInput.value = Math.ceil(question.marks / 2);
+                });
+
+                btnSubmit.addEventListener('click', () => {
+                    const teamSelect = document.getElementById('score-team');
+                    const teamId = teamSelect.value;
+                    const result = document.querySelector('input[name="score-result"]:checked').value;
+                    const marks = parseInt(marksInput.value, 10);
 
                     if (!teamId) {
-                        window.QuizBowl.Components.Toast.show("Please select a team.", "warning");
+                        Toast.show("Please select a team.", "warning");
+                        teamSelect.focus();
+                        return;
+                    }
+                    if (isNaN(marks) || marks < 0 || marks > question.marks) {
+                        Toast.show(`Marks must be between 0 and ${question.marks}.`, "warning");
+                        marksInput.focus();
                         return;
                     }
 
                     try {
                         window.QuizBowl.Services.ScoringService.awardMarks(question.id, teamId, marks, result);
-                        window.QuizBowl.Components.Toast.show("Score submitted successfully!", "success");
+                        Toast.show(`${UI.teamName(teamId)} awarded ${marks} pts.`, "success");
                         // Rerender view
                         window.QuizBowl.Views.QuestionDetail.render(container, id);
                     } catch (err) {
-                        window.QuizBowl.Components.Toast.show(err.message, "danger");
+                        Toast.show(err.message, "danger");
                     }
                 });
-            } else {
-                document.getElementById('btn-reset-status').addEventListener('click', () => {
-                    if (confirm("Resetting will make this question available again and WILL subtract the previously awarded points from the team that answered it. Proceed?")) {
+            }
+
+            const btnReset = document.getElementById('btn-reset-status');
+            if (btnReset) {
+                btnReset.addEventListener('click', async () => {
+                    const confirmed = await Modal.confirm({
+                        title: 'Reset this question?',
+                        message: 'It will become available again, and the points previously awarded for it will be subtracted from the team.',
+                        confirmText: 'Reset',
+                        icon: 'reset'
+                    });
+                    if (confirmed) {
                         window.QuizBowl.Services.ScoringService.resetScoreAndStatus(question.id);
-                        window.QuizBowl.Components.Toast.show("Question status and score reset to available.", "info");
+                        Toast.show("Question reset and points reversed.", "info");
                         window.QuizBowl.Views.QuestionDetail.render(container, id);
                     }
                 });
             }
 
             // Bind delete event
-            const btnDelete = document.getElementById('btn-delete-question');
-            if (btnDelete) {
-                btnDelete.addEventListener('click', () => {
-                    if (confirm('Are you sure you want to delete this question? The remaining questions will be automatically renumbered.')) {
-                        window.QuizBowl.Services.QuestionService.deleteAndRenumber(question.id);
-                        window.QuizBowl.Components.Toast.show("Question deleted and others renumbered.", "success");
-                        window.QuizBowl.Router.navigate('questions');
-                    }
+            document.getElementById('btn-delete-question').addEventListener('click', async () => {
+                const confirmed = await Modal.confirm({
+                    title: `Delete question ${question.id}?`,
+                    message: 'This cannot be undone. The remaining questions of this type will be renumbered.',
+                    confirmText: 'Delete',
+                    danger: true
                 });
-            }
+                if (confirmed) {
+                    window.QuizBowl.Services.QuestionService.deleteAndRenumber(question.id);
+                    Toast.show("Question deleted and others renumbered.", "success");
+                    window.QuizBowl.Router.navigate('questions');
+                }
+            });
         }
     };
-
-    // Dynamic routing for question details
-    // Note: The router needs a slight update to handle dynamic segments. We'll handle it inside the router handleRoute function.
 })();

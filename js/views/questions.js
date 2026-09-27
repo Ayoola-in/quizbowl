@@ -3,161 +3,245 @@
  * Questions List View
  */
 (function() {
+    // Filters persist while navigating between the list and question details
+    const filters = { status: 'all', type: 'all' };
+    let applyFilters = null;
+
     window.QuizBowl.Views.Questions = {
         render: function(container) {
             const QuestionService = window.QuizBowl.Services.QuestionService;
-            let questions = QuestionService.getAllQuestions();
-            
-            // Initial render wrapper
+            const UI = window.QuizBowl.Utils.UI;
+            const questions = QuestionService.getAllQuestions();
+            const stats = QuestionService.getDashboardStats();
+
+            const statusTabs = [
+                { value: 'all', label: 'All', count: stats.total },
+                { value: 'available', label: 'Available', count: stats.available },
+                { value: 'answered', label: 'Answered', count: stats.answered }
+            ];
+            if (stats.disabled > 0) statusTabs.push({ value: 'disabled', label: 'Disabled', count: stats.disabled });
+
             const html = `
                 <div class="questions-view">
-                    <div class="questions-header">
-                        <h1>Question Bank</h1>
+                    <div class="page-header">
                         <div>
-                            <button id="btn-delete-selected" class="btn" style="position: fixed; bottom: 2rem; right: 2rem; z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border-radius: 50px; padding: 1rem 2rem; background: var(--color-danger); color: white; display: none;" onclick="window.QuizBowl.Views.Questions.deleteSelected()">
-                                Delete Selected (<span id="delete-count">0</span>)
-                            </button>
-                            <button class="btn btn-primary" onclick="window.QuizBowl.Router.navigate('add-question')">
-                                + Add Question
+                            <h1>Question Bank</h1>
+                            <p>Browse, filter and open questions to score them.</p>
+                        </div>
+                        <div class="page-actions">
+                            <button class="btn btn-primary" onclick="window.QuizBowl.Router.navigate('add-question')" title="Add question (Alt+N)">
+                                ${UI.icon('plus')} Add Question
                             </button>
                         </div>
                     </div>
 
                     <div class="filters-bar">
-                        <div class="filter-group">
-                            <label>Status</label>
-                            <select id="filter-status">
-                                <option value="all">All</option>
-                                <option value="available">Available</option>
-                                <option value="answered">Answered</option>
-                                <option value="disabled">Disabled</option>
-                            </select>
+                        <div class="segmented" role="tablist" aria-label="Filter by status" id="filter-status">
+                            ${statusTabs.map(t => `
+                                <button type="button" role="tab" data-value="${t.value}" class="${filters.status === t.value ? 'active' : ''}" aria-selected="${filters.status === t.value}">
+                                    ${t.label}<span class="count">${t.count}</span>
+                                </button>
+                            `).join('')}
                         </div>
-                        <div class="filter-group">
-                            <label>Type</label>
-                            <select id="filter-type">
-                                <option value="all">All</option>
-                                <option value="mcq">Multiple Choice</option>
-                                <option value="calculation">Calculation</option>
-                                <option value="theory">Theory</option>
-                                <option value="true_false">True/False</option>
-                            </select>
+                        <select id="filter-type" class="form-control filter-select" aria-label="Filter by type">
+                            <option value="all">All types</option>
+                            ${Object.keys(UI.QUESTION_TYPES).map(type => `
+                                <option value="${type}" ${filters.type === type ? 'selected' : ''}>${UI.typeLabel(type)}</option>
+                            `).join('')}
+                        </select>
+                        <div class="filter-search">
+                            ${UI.icon('search')}
+                            <input type="search" id="local-search" class="form-control" placeholder="Search by ID, keyword, category..." autocomplete="off" value="${UI.escapeHtml(window.QuizBowl.State.searchQuery)}">
                         </div>
-                        <div class="filter-group" style="flex: 1;">
-                            <label>Quick Search</label>
-                            <input type="text" id="local-search" placeholder="Search by ID, keyword, content...">
-                        </div>
+                    </div>
+
+                    <div class="results-meta">
+                        <label class="select-all hide-in-display">
+                            <input type="checkbox" id="select-all"> Select all
+                        </label>
+                        <span id="results-count"></span>
                     </div>
 
                     <div id="questions-grid" class="questions-grid">
                         <!-- Questions injected here -->
                     </div>
+
+                    <div class="selection-bar hide-in-display" id="selection-bar" role="region" aria-label="Bulk actions">
+                        <span><strong id="delete-count">0</strong> selected</span>
+                        <div style="display: flex; gap: 0.25rem;">
+                            <button class="btn btn-ghost btn-sm" onclick="window.QuizBowl.Views.Questions.clearSelection()">Cancel</button>
+                            <button id="btn-delete-selected" class="btn btn-danger btn-sm" onclick="window.QuizBowl.Views.Questions.deleteSelected()">
+                                ${UI.icon('trash')} Delete
+                            </button>
+                        </div>
+                    </div>
                 </div>
             `;
-            
+
             container.innerHTML = html;
 
             const grid = document.getElementById('questions-grid');
-            
+            const searchInput = document.getElementById('local-search');
+
             const renderGrid = (data) => {
-                grid.innerHTML = data.map(q => `
-                    <div class="question-card" style="position: relative; cursor: pointer;" onclick="if(event.target.type !== 'checkbox') window.QuizBowl.Router.navigate('question/${q.id}')">
-                        <input type="checkbox" class="q-select-checkbox" data-id="${q.id}" style="position: absolute; top: 15px; right: 15px; transform: scale(1.5); cursor: pointer;" onclick="event.stopPropagation()" onchange="window.QuizBowl.Views.Questions.updateDeleteButton()">
-                        <div class="qc-header" style="padding-right: 30px;">
-                            <span class="qc-id">${q.id}</span>
-                            <span class="badge badge-${q.status}">${q.status}</span>
+                document.getElementById('results-count').textContent =
+                    `Showing ${data.length} of ${questions.length} question${questions.length === 1 ? '' : 's'}`;
+
+                if (data.length === 0) {
+                    const hasFilters = filters.status !== 'all' || filters.type !== 'all' || searchInput.value.trim();
+                    grid.innerHTML = `<div class="card" style="grid-column: 1 / -1;">${
+                        hasFilters
+                            ? UI.emptyState('search', 'No matching questions', 'Try a different search term or clear the filters.',
+                                `<button class="btn btn-secondary btn-sm" id="btn-clear-filters">Clear filters</button>`)
+                            : UI.emptyState('questions', 'Your question bank is empty', 'Add your first question to get started.',
+                                `<a href="#add-question" class="btn btn-primary btn-sm">${UI.icon('plus')} Add Question</a>`)
+                    }</div>`;
+                    const clearBtn = document.getElementById('btn-clear-filters');
+                    if (clearBtn) clearBtn.addEventListener('click', () => this.resetFilters());
+                } else {
+                    grid.innerHTML = data.map(q => `
+                        <div class="question-card ${q.status === 'answered' ? 'is-answered' : ''}" role="link" tabindex="0" data-id="${UI.escapeHtml(q.id)}"
+                            aria-label="Open question ${UI.escapeHtml(q.id)}">
+                            <div class="qc-header">
+                                <span class="qc-id">${UI.escapeHtml(q.id)}</span>
+                                ${UI.typeChip(q.type)}
+                                ${UI.statusBadge(q.status)}
+                                <label class="qc-select hide-in-display" title="Select">
+                                    <input type="checkbox" class="q-select-checkbox" data-id="${UI.escapeHtml(q.id)}" aria-label="Select ${UI.escapeHtml(q.id)}">
+                                </label>
+                            </div>
+                            <div class="qc-body">
+                                ${q.question}
+                            </div>
+                            <div class="qc-footer">
+                                <span class="qc-category">${UI.escapeHtml(q.category || 'Uncategorised')}</span>
+                                <span class="qc-marks">${q.marks} pts</span>
+                            </div>
                         </div>
-                        <div class="qc-body">
-                            ${q.question}
-                        </div>
-                        <div class="qc-footer">
-                            <span class="qc-category">${q.category}</span>
-                            <span class="qc-type">${q.type.replace('_', '/')}</span>
-                            <span class="qc-marks">${q.marks} pts</span>
-                        </div>
-                    </div>
-                `).join('') || `<div class="text-muted" style="grid-column: 1 / -1; text-align: center; padding: 2rem;">No questions found.</div>`;
-                
+                    `).join('');
+                }
+
+                document.getElementById('select-all').checked = false;
+                this.updateDeleteButton();
+
                 // Tell MathJax to process the newly added content
-                if (window.MathJax) {
+                if (window.MathJax && MathJax.typesetPromise) {
                     MathJax.typesetPromise([grid]).catch((err) => console.log(err.message));
                 }
             };
 
-            // Initial render
-            renderGrid(questions);
-
             // Setup listeners
-            const applyFilters = () => {
+            applyFilters = () => {
                 let filtered = questions;
-                const status = document.getElementById('filter-status').value;
-                const type = document.getElementById('filter-type').value;
-                const query = document.getElementById('local-search').value;
-
-                if (status !== 'all') filtered = filtered.filter(q => q.status === status);
-                if (type !== 'all') filtered = filtered.filter(q => q.type === type);
-                
-                filtered = window.QuizBowl.Utils.Search.searchQuestions(query, filtered);
-                
+                if (filters.status !== 'all') filtered = filtered.filter(q => q.status === filters.status);
+                if (filters.type !== 'all') filtered = filtered.filter(q => q.type === filters.type);
+                filtered = window.QuizBowl.Utils.Search.searchQuestions(searchInput.value, filtered);
                 renderGrid(filtered);
             };
 
-            document.getElementById('filter-status').addEventListener('change', applyFilters);
-            document.getElementById('filter-type').addEventListener('change', applyFilters);
-            document.getElementById('local-search').addEventListener('input', applyFilters);
-
-            // Connect global search
-            const globalSearch = document.getElementById('global-search');
-            if (globalSearch) {
-                globalSearch.addEventListener('input', (e) => {
-                    if (window.QuizBowl.State.currentRoute === 'questions') {
-                        document.getElementById('local-search').value = e.target.value;
-                        applyFilters();
-                    }
+            document.getElementById('filter-status').addEventListener('click', (e) => {
+                const btn = e.target.closest('button[data-value]');
+                if (!btn) return;
+                filters.status = btn.getAttribute('data-value');
+                document.querySelectorAll('#filter-status button').forEach(b => {
+                    b.classList.toggle('active', b === btn);
+                    b.setAttribute('aria-selected', b === btn);
                 });
-            }
+                applyFilters();
+            });
+
+            document.getElementById('filter-type').addEventListener('change', (e) => {
+                filters.type = e.target.value;
+                applyFilters();
+            });
+
+            searchInput.addEventListener('input', () => {
+                window.QuizBowl.State.searchQuery = searchInput.value;
+                const globalSearch = document.getElementById('global-search');
+                if (globalSearch && globalSearch !== document.activeElement) globalSearch.value = searchInput.value;
+                applyFilters();
+            });
+
+            // Card interactions: open on click / Enter, toggle selection via checkbox
+            grid.addEventListener('click', (e) => {
+                if (e.target.closest('.qc-select')) return;
+                const card = e.target.closest('.question-card');
+                if (card) window.QuizBowl.Router.navigate('question/' + encodeURIComponent(card.getAttribute('data-id')));
+            });
+            grid.addEventListener('keydown', (e) => {
+                const card = e.target.closest('.question-card');
+                if (card && e.target === card && (e.key === 'Enter' || e.key === ' ')) {
+                    e.preventDefault();
+                    card.click();
+                }
+            });
+            grid.addEventListener('change', (e) => {
+                if (e.target.classList.contains('q-select-checkbox')) this.updateDeleteButton();
+            });
+
+            document.getElementById('select-all').addEventListener('change', (e) => {
+                document.querySelectorAll('.q-select-checkbox').forEach(cb => { cb.checked = e.target.checked; });
+                this.updateDeleteButton();
+            });
+
+            applyFilters();
         },
-        
+
+        // Called by the header search box while this view is open
+        applyExternalSearch: function(query) {
+            const searchInput = document.getElementById('local-search');
+            if (!searchInput || !applyFilters) return;
+            searchInput.value = query;
+            applyFilters();
+        },
+
+        resetFilters: function() {
+            filters.status = 'all';
+            filters.type = 'all';
+            window.QuizBowl.State.searchQuery = '';
+            const globalSearch = document.getElementById('global-search');
+            if (globalSearch) globalSearch.value = '';
+            this.render(document.getElementById('view-container'));
+        },
+
         updateDeleteButton: function() {
             const checkboxes = document.querySelectorAll('.q-select-checkbox:checked');
-            const btn = document.getElementById('btn-delete-selected');
-            const count = document.getElementById('delete-count');
-            
-            if (checkboxes.length > 0) {
-                btn.style.display = 'inline-block';
-                count.textContent = checkboxes.length;
-            } else {
-                btn.style.display = 'none';
-            }
+            const bar = document.getElementById('selection-bar');
+            if (!bar) return;
+
+            document.querySelectorAll('.q-select-checkbox').forEach(cb => {
+                cb.closest('.question-card').classList.toggle('selected', cb.checked);
+            });
+            document.getElementById('delete-count').textContent = checkboxes.length;
+            bar.classList.toggle('show', checkboxes.length > 0);
         },
-        
-        deleteSelected: function() {
+
+        clearSelection: function() {
+            document.querySelectorAll('.q-select-checkbox, #select-all').forEach(cb => { cb.checked = false; });
+            this.updateDeleteButton();
+        },
+
+        deleteSelected: async function() {
             const checkboxes = document.querySelectorAll('.q-select-checkbox:checked');
             if (checkboxes.length === 0) return;
-            
-            if (confirm(`Are you sure you want to delete ${checkboxes.length} selected question(s)?`)) {
-                const QuestionService = window.QuizBowl.Services.QuestionService;
-                
-                // Track types affected for renumbering
-                const typesAffected = new Set();
-                
-                checkboxes.forEach(cb => {
-                    const id = cb.getAttribute('data-id');
-                    const q = QuestionService.getQuestion(id);
-                    if (q) typesAffected.add(q.type);
-                    QuestionService.deleteQuestion(id);
-                });
-                
-                // Renumber only affected types (or just run global migrate)
-                QuestionService.migrateIds();
-                
-                window.QuizBowl.Components.Toast.show(`${checkboxes.length} questions deleted`, 'success');
-                window.QuizBowl.Views.Questions.render(document.getElementById('view-container'));
-            }
-        }
-    };
+            const count = checkboxes.length;
 
-    window.QuizBowl.Router.routes['questions'] = () => {
-        window.QuizBowl.Views.Questions.render(document.getElementById('view-container'));
+            const confirmed = await window.QuizBowl.Components.Modal.confirm({
+                title: `Delete ${count} question${count === 1 ? '' : 's'}?`,
+                message: 'This cannot be undone. Remaining questions will be renumbered automatically.',
+                confirmText: 'Delete',
+                danger: true
+            });
+            if (!confirmed) return;
+
+            const QuestionService = window.QuizBowl.Services.QuestionService;
+            checkboxes.forEach(cb => QuestionService.deleteQuestion(cb.getAttribute('data-id')));
+
+            // Renumber remaining questions so IDs stay sequential per type
+            QuestionService.migrateIds();
+
+            window.QuizBowl.Components.Toast.show(`${count} question${count === 1 ? '' : 's'} deleted`, 'success');
+            this.render(document.getElementById('view-container'));
+        }
     };
 })();

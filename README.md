@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # Quiz Bowl Management System
 
 A professional, single-device web application for managing university engineering department quiz competitions.
@@ -31,6 +30,19 @@ Click **Questions** on the sidebar, then click **+ Add Question**. Enter the que
 Click the **Display Mode** button in the top right corner. This will expand the main view and hide the sidebar, header, and administrative scoring controls, making it perfect for projecting onto a screen for the audience.
 Press `ESC` to exit Display Mode.
 
+## Keyboard Shortcuts
+| Where | Key | Action |
+|---|---|---|
+| Admin | `Ctrl+K` | Focus question search |
+| Admin | `Alt+N` | Add a new question |
+| Admin | `Esc` | Exit Display Mode |
+| Public Display | `Enter` | Show the typed question number |
+| Public Display | `A` | Reveal / hide the answer |
+| Public Display | `F` | Toggle fullscreen |
+| Public Display | `Esc` | Close question / celebration |
+
+The sun/moon button in the header toggles dark mode (shared by the admin and public pages).
+
 ## Vercel Deployment
 This project is configured as a static site and is ready to deploy to Vercel.
 1. Install Vercel CLI: `npm i -g vercel`
@@ -41,6 +53,3 @@ The application uses a modular Repository/Service pattern mapped to `window.Quiz
 - `Data`: Wraps `localStorage` providing a database-like API (`questions-db.js`). This layer can be swapped out for Supabase or a SQL backend later.
 - `Services`: Business logic (scoring, stats).
 - `Views`: UI rendering logic.
-=======
-# quizbowl
->>>>>>> db258ffca8f1b390b73a07c96e5d8b73443c2c31
