@@ -84,6 +84,43 @@ kbd {
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
+.quiz-switcher {
+    padding: var(--spacing-md) var(--spacing-md) 0;
+}
+
+.quiz-switcher label {
+    display: block;
+    font-size: 0.68rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #64748B;
+    margin-bottom: var(--spacing-xs);
+}
+
+.quiz-select {
+    width: 100%;
+    padding: 0.55rem 0.75rem;
+    border-radius: var(--border-radius-sm);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background-color: rgba(255, 255, 255, 0.06);
+    color: var(--text-inverse);
+    font: inherit;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.quiz-select:hover { border-color: rgba(255, 255, 255, 0.24); }
+
+.quiz-select:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 1px;
+}
+
+/* Native dropdown list uses the OS surface; keep its text readable */
+.quiz-select option { color: #0F172A; background: #FFFFFF; }
+
 .logo {
     display: flex;
     align-items: center;

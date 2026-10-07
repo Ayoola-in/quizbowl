@@ -53,6 +53,10 @@
                     </span>
                 </a>
             </div>
+            <div class="quiz-switcher">
+                <label for="quiz-select">Current quiz</label>
+                <select id="quiz-select" class="quiz-select"></select>
+            </div>
             <nav class="sidebar-nav" aria-label="Main navigation">
                 <div class="nav-label">Competition</div>
                 <a href="#dashboard" class="nav-item active" data-route="dashboard"><span data-icon="dashboard"></span>Dashboard</a>
@@ -61,6 +65,7 @@
                 <a href="#history" class="nav-item" data-route="history"><span data-icon="history"></span>History</a>
                 <div class="nav-label" style="margin-top: var(--spacing-md);">Configuration</div>
                 <a href="#settings" class="nav-item" data-route="settings"><span data-icon="settings"></span>Settings</a>
+                <a href="#quizzes" class="nav-item" data-route="quizzes"><span data-icon="list"></span>All Quizzes</a>
             </nav>
             <div class="sidebar-footer">
                 <a href="public.html" target="_blank" rel="noopener" class="nav-item">
@@ -110,6 +115,7 @@
     <script src="js/data/history-db.js"></script>
     <script src="js/data/settings-db.js"></script>
     <script src="js/data/seed-data.js"></script>
+    <script src="js/data/quizzes-db.js"></script>
 
     <!-- Services -->
     <script src="js/services/question-service.js"></script>
@@ -132,6 +138,7 @@
     <script src="js/views/teams.js"></script>
     <script src="js/views/history.js"></script>
     <script src="js/views/settings.js"></script>
+    <script src="js/views/quizzes.js"></script>
 
     <!-- Router -->
     <script src="js/router.js"></script>
@@ -139,8 +146,9 @@
     <!-- Application Initialization -->
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            // Initialize Seed Data
-            window.QuizBowl.Data.initializeSeedData();
+            // Create/upgrade quizzes (seeds sample data on a fresh install)
+            window.QuizBowl.Data.QuizzesDB.ensureInitialized();
+            window.QuizBowl.App.refreshQuizSwitcher();
             // Migrate old IDs to new type-specific IDs
             window.QuizBowl.Services.QuestionService.migrateIds();
             // Start Router

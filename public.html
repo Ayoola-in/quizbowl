@@ -45,7 +45,7 @@
             <span class="logo-icon"><span data-icon="trophy"></span></span>
             <span>
                 <h1>QuizBowl</h1>
-                <small>Live Quiz</small>
+                <small id="quiz-name">Live Quiz</small>
             </span>
         </div>
         <div class="scoreboard" id="scoreboard" aria-label="Scoreboard"></div>
@@ -155,6 +155,8 @@
     <script src="js/data/teams-db.js"></script>
     <script src="js/data/history-db.js"></script>
     <script src="js/data/settings-db.js"></script>
+    <script src="js/data/seed-data.js"></script>
+    <script src="js/data/quizzes-db.js"></script>
     <script src="js/services/question-service.js"></script>
     <script src="js/services/team-service.js"></script>
     <script src="js/services/scoring-service.js"></script>
@@ -169,6 +171,9 @@
             const QuestionService = window.QuizBowl.Services.QuestionService;
             const TeamService = window.QuizBowl.Services.TeamService;
             const Toast = window.QuizBowl.Components.Toast;
+            const QuizzesDB = window.QuizBowl.Data.QuizzesDB;
+
+            QuizzesDB.ensureInitialized();
 
             const TYPE_PREFIXES = {
                 'theory': 'THRY',
@@ -215,6 +220,13 @@
                 }
             }
             document.getElementById('btn-fullscreen').addEventListener('click', toggleFullscreen);
+
+            // ---------- Quiz name ----------
+            function renderQuizName() {
+                const quiz = QuizzesDB.getActive();
+                document.getElementById('quiz-name').textContent = quiz ? quiz.name : 'Live Quiz';
+                document.title = `${quiz ? quiz.name + ' · ' : ''}QuizBowl Live`;
+            }
 
             // ---------- Scoreboard ----------
             function renderScoreboard() {
@@ -502,7 +514,12 @@
                 setAnswerVisible(true);
                 renderScoreboard();
 
-                showCelebration(t, q.marks);
+                if (window.QuizBowl.Data.SettingsDB.getSettings().showScoresAfterAnswer) {
+                    showCelebration(t, q.marks);
+                } else {
+                    // Scores stay hidden; leave the answer on screen until the host closes it
+                    Toast.show(`${t.name} got it right! +${q.marks} points`, 'success');
+                }
             });
 
             function showCelebration(team, marksAwarded) {
@@ -609,10 +626,21 @@
                     window.QuizBowl.Theme.set(e.newValue === 'dark');
                     return;
                 }
+                // Admin switched or renamed quizzes: start fresh on the new quiz
+                if (e.key === 'quizbowl_active_quiz' || e.key === 'quizbowl_quizzes') {
+                    renderQuizName();
+                    if (e.key === 'quizbowl_active_quiz') {
+                        overlay.hidden = true;
+                        clearInterval(confettiInterval);
+                        showPicker();
+                        return;
+                    }
+                }
                 renderScoreboard();
                 if (!picker.hidden) renderPicker();
             });
 
+            renderQuizName();
             showPicker();
         });
     </script>

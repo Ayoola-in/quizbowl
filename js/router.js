@@ -10,7 +10,8 @@
         'question': 'Question',
         'teams': 'Teams',
         'history': 'History',
-        'settings': 'Settings'
+        'settings': 'Settings',
+        'quizzes': 'Quizzes'
     };
 
     window.QuizBowl.Router = {
@@ -22,6 +23,7 @@
             'teams': () => window.QuizBowl.Views.Teams.render(document.getElementById('view-container')),
             'history': () => window.QuizBowl.Views.History.render(document.getElementById('view-container')),
             'settings': () => window.QuizBowl.Views.Settings.render(document.getElementById('view-container')),
+            'quizzes': () => window.QuizBowl.Views.Quizzes.render(document.getElementById('view-container')),
         },
 
         init: function() {
@@ -66,7 +68,8 @@
                 else el.removeAttribute('aria-current');
             });
 
-            document.title = `${TITLES[baseRoute] ? TITLES[baseRoute] + (param ? ' ' + param : '') : 'Not Found'} · QuizBowl`;
+            const activeQuiz = window.QuizBowl.Data.QuizzesDB.getActive();
+            document.title = `${TITLES[baseRoute] ? TITLES[baseRoute] + (param ? ' ' + param : '') : 'Not Found'} · ${activeQuiz ? activeQuiz.name + ' · ' : ''}QuizBowl`;
             viewContainer.scrollTop = 0;
 
             if (this.routes[baseRoute]) {

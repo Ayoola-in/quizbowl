@@ -41,6 +41,36 @@ window.QuizBowl.Theme = {
     }
 };
 
+// Quiz switching (admin app)
+window.QuizBowl.App = {
+    refreshQuizSwitcher: function() {
+        const select = document.getElementById('quiz-select');
+        if (!select) return;
+        const UI = window.QuizBowl.Utils.UI;
+        const QuizzesDB = window.QuizBowl.Data.QuizzesDB;
+        const activeId = QuizzesDB.getActiveId();
+        select.innerHTML = QuizzesDB.getAll().map(q =>
+            `<option value="${UI.escapeHtml(q.id)}" ${q.id === activeId ? 'selected' : ''}>${UI.escapeHtml(q.name)}</option>`
+        ).join('') + '<option value="__new">+ New quiz…</option>';
+    },
+
+    // Re-render the app for the now-active quiz; `route` is where to land
+    showActiveQuiz: function(route = 'dashboard') {
+        window.QuizBowl.Services.QuestionService.migrateIds();
+        window.QuizBowl.App.refreshQuizSwitcher();
+        const searchInput = document.getElementById('global-search');
+        if (searchInput) searchInput.value = '';
+        window.QuizBowl.State.searchQuery = '';
+        if (window.location.hash.substring(1) === route) window.QuizBowl.Router.handleRoute();
+        else window.QuizBowl.Router.navigate(route);
+    },
+
+    switchQuiz: function(id, route = 'dashboard') {
+        window.QuizBowl.Data.QuizzesDB.setActive(id);
+        window.QuizBowl.App.showActiveQuiz(route);
+    }
+};
+
 // Keyboard Shortcuts and Global UI Handlers
 document.addEventListener('DOMContentLoaded', () => {
     const appContainer = document.getElementById('app-container');
@@ -100,6 +130,35 @@ document.addEventListener('DOMContentLoaded', () => {
         window.QuizBowl.Theme.syncButton();
         btnTheme.addEventListener('click', () => window.QuizBowl.Theme.set(!window.QuizBowl.Theme.isDark()));
     }
+
+    // Quiz switcher in the sidebar
+    const quizSelect = document.getElementById('quiz-select');
+    if (quizSelect) {
+        quizSelect.addEventListener('change', () => {
+            const QuizzesDB = window.QuizBowl.Data.QuizzesDB;
+            if (quizSelect.value === '__new') {
+                quizSelect.value = QuizzesDB.getActiveId();
+                window.QuizBowl.Views.Quizzes.createQuiz();
+                return;
+            }
+            const quiz = QuizzesDB.getById(quizSelect.value);
+            if (!quiz) return;
+            window.QuizBowl.App.switchQuiz(quiz.id);
+            window.QuizBowl.Components.Toast.show(`Switched to "${quiz.name}".`, 'info');
+            closeNav();
+        });
+    }
+
+    // Follow quiz changes made in another tab
+    window.addEventListener('storage', (e) => {
+        const Storage = window.QuizBowl.Data.Storage;
+        if (e.key === Storage.PREFIX + Storage.ACTIVE_QUIZ_KEY) {
+            window.QuizBowl.App.showActiveQuiz();
+        } else if (e.key === Storage.PREFIX + 'quizzes') {
+            window.QuizBowl.App.refreshQuizSwitcher();
+            if (window.QuizBowl.State.currentRoute === 'quizzes') window.QuizBowl.Router.handleRoute();
+        }
+    });
 
     // Mobile navigation drawer
     function closeNav() {

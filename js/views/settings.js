@@ -4,6 +4,7 @@
             const SettingsDB = window.QuizBowl.Data.SettingsDB;
             const UI = window.QuizBowl.Utils.UI;
             const settings = SettingsDB.getSettings();
+            const quiz = window.QuizBowl.Data.QuizzesDB.getActive();
 
             const row = (id, label, value, min, unit, type) => `
                 <div class="settings-row">
@@ -20,7 +21,7 @@
                     <div class="page-header">
                         <div>
                             <h1>Quiz Settings</h1>
-                            <p>Configure countdown timers and default marks for each question type.</p>
+                            <p>Timers, marks and display options for <strong>${UI.escapeHtml(quiz ? quiz.name : 'this quiz')}</strong>. Other quizzes keep their own settings.</p>
                         </div>
                     </div>
 
@@ -58,6 +59,26 @@
                                     <span>Saving applies these marks to <strong style="display: inline;">all existing questions</strong> of each type.</span>
                                 </div>
                             </section>
+
+                            <section class="card">
+                                <div class="card-header">
+                                    <div>
+                                        <h2>Public Display</h2>
+                                        <p>What the audience sees during the quiz</p>
+                                    </div>
+                                    <span class="stat-icon info" style="width: 36px; height: 36px;">${UI.icon('monitor')}</span>
+                                </div>
+                                <div class="settings-row settings-row-toggle">
+                                    <label for="setting-show-scores">
+                                        ${UI.icon('trophy')}
+                                        <span>
+                                            Show team scores after a correct answer
+                                            <span class="form-hint">Celebration screen with confetti and the animated leaderboard. When off, a short notice is shown instead.</span>
+                                        </span>
+                                    </label>
+                                    <input type="checkbox" id="setting-show-scores" ${settings.showScoresAfterAnswer ? 'checked' : ''}>
+                                </div>
+                            </section>
                         </div>
 
                         <div class="settings-actions">
@@ -75,9 +96,11 @@
             const status = document.getElementById('settings-status');
 
             // Enable save/discard only once something has changed
-            const initialValues = [...form.querySelectorAll('input')].map(i => i.value).join('|');
+            const snapshot = () => [...form.querySelectorAll('input')].map(i => i.type === 'checkbox' ? i.checked : i.value).join('|');
+            const initialValues = snapshot();
+            form.addEventListener('change', () => form.dispatchEvent(new Event('input')));
             form.addEventListener('input', () => {
-                const dirty = [...form.querySelectorAll('input')].map(i => i.value).join('|') !== initialValues;
+                const dirty = snapshot() !== initialValues;
                 btnSave.disabled = !dirty;
                 btnDiscard.disabled = !dirty;
                 status.textContent = dirty ? 'You have unsaved changes' : 'No unsaved changes';
@@ -97,7 +120,8 @@
                     theoryMarks: parseInt(document.getElementById('setting-theory-marks').value) || 5,
                     calculationMarks: parseInt(document.getElementById('setting-calculation-marks').value) || 10,
                     mcqMarks: parseInt(document.getElementById('setting-mcq-marks').value) || 2,
-                    true_falseMarks: parseInt(document.getElementById('setting-tf-marks').value) || 1
+                    true_falseMarks: parseInt(document.getElementById('setting-tf-marks').value) || 1,
+                    showScoresAfterAnswer: document.getElementById('setting-show-scores').checked
                 };
 
                 SettingsDB.saveSettings(newSettings);

@@ -11,7 +11,8 @@
         theoryMarks: 5,
         calculationMarks: 10,
         mcqMarks: 2,
-        true_falseMarks: 1
+        true_falseMarks: 1,
+        showScoresAfterAnswer: true
     };
 
     window.QuizBowl.Data.SettingsDB = {

@@ -132,6 +132,15 @@
     font-size: 0.9rem;
 }
 
+.settings-row-toggle { grid-template-columns: minmax(0, 1fr) auto; }
+
+.settings-row-toggle input[type="checkbox"] { width: 20px; height: 20px; }
+
+.settings-row .form-hint { display: block; font-weight: 400; margin-top: 0.15rem; }
+
+/* Quizzes */
+.quiz-row-active { background: var(--bg-subtle); }
+
 .settings-actions {
     display: flex;
     align-items: center;
