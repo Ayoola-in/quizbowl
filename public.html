@@ -14,8 +14,8 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="QuizBowl">
-    <title>QuizBowl - Public Display</title>
+    <meta name="apple-mobile-web-app-title" content="Quizr">
+    <title>Quizr - Public Display</title>
 
     <!-- Apply saved theme before first paint to avoid a flash -->
     <script>
@@ -54,7 +54,7 @@
         <div class="logo">
             <span class="logo-icon"><span data-icon="trophy"></span></span>
             <span>
-                <h1>QuizBowl</h1>
+                <h1>Quizr</h1>
                 <small id="quiz-name">Live Quiz</small>
             </span>
         </div>
@@ -237,7 +237,7 @@
             function renderQuizName() {
                 const quiz = QuizzesDB.getActive();
                 document.getElementById('quiz-name').textContent = quiz ? quiz.name : 'Live Quiz';
-                document.title = `${quiz ? quiz.name + ' · ' : ''}QuizBowl Live`;
+                document.title = `${quiz ? quiz.name + ' · ' : ''}Quizr Live`;
             }
 
             // ---------- Scoreboard ----------

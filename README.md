@@ -1,4 +1,4 @@
-# Quiz Bowl Management System
+# Quizr
 
 A professional, single-device web application for managing university engineering department quiz competitions.
 
@@ -24,7 +24,7 @@ python -m http.server 8000
 ```
 
 ## Install on a Phone (Web App)
-QuizBowl is an installable web app (PWA). Once installed it opens from the home screen like a normal app, full screen, and **works offline**. All quizzes, questions and scores are stored on the phone itself.
+Quizr is an installable web app (PWA). Once installed it opens from the home screen like a normal app, full screen, and **works offline**. All quizzes, questions and scores are stored on the phone itself.
 
 Install it from the deployed **https** site (e.g. your Vercel URL). Phones only allow installing over https, so opening `index.html` as a file or over plain `http://` on your Wi-Fi will not offer the install option.
 

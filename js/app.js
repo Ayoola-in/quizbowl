@@ -205,4 +205,4 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-console.log('QuizBowl Application Initialized');
+console.log('Quizr Application Initialized');

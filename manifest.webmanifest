@@ -1,6 +1,6 @@
 {
-  "name": "QuizBowl - Quiz Manager",
-  "short_name": "QuizBowl",
+  "name": "Quizr - Quiz Manager",
+  "short_name": "Quizr",
   "description": "Run quiz competitions: questions, teams, scoring and a live public display. Works offline.",
   "id": "./index.html",
   "start_url": "./index.html",

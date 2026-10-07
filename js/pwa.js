@@ -27,7 +27,7 @@
     window.addEventListener('appinstalled', () => {
         deferredPrompt = null;
         installButtons().forEach(btn => { btn.hidden = true; });
-        if (window.QuizBowl.Components.Toast) window.QuizBowl.Components.Toast.show('QuizBowl installed. Open it from your home screen.', 'success');
+        if (window.QuizBowl.Components.Toast) window.QuizBowl.Components.Toast.show('Quizr installed. Open it from your home screen.', 'success');
     });
 
     document.addEventListener('DOMContentLoaded', () => {

@@ -69,7 +69,7 @@
             });
 
             const activeQuiz = window.QuizBowl.Data.QuizzesDB.getActive();
-            document.title = `${TITLES[baseRoute] ? TITLES[baseRoute] + (param ? ' ' + param : '') : 'Not Found'} · ${activeQuiz ? activeQuiz.name + ' · ' : ''}QuizBowl`;
+            document.title = `${TITLES[baseRoute] ? TITLES[baseRoute] + (param ? ' ' + param : '') : 'Not Found'} · ${activeQuiz ? activeQuiz.name + ' · ' : ''}Quizr`;
             viewContainer.scrollTop = 0;
 
             if (this.routes[baseRoute]) {
