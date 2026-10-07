@@ -1,6 +1,6 @@
 # Quizr
 
-A professional, single-device web application for managing university engineering department quiz competitions.
+A web app for running any kind of quiz competition (school, church, community, office or pub quizzes) with questions, teams, live scoring and an audience-facing display. Create as many quizzes as you like; each keeps its own questions, teams, history and settings.
 
 ## Features
 - **Client-Side Storage**: Uses `localStorage` to operate without a backend.

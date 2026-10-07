@@ -38,7 +38,7 @@
                                 <div class="form-row">
                                     <div class="form-group">
                                         <label for="q-category">Category</label>
-                                        <input type="text" id="q-category" class="form-control" required placeholder="e.g., Circuit Theory" list="category-suggestions">
+                                        <input type="text" id="q-category" class="form-control" required placeholder="e.g., Geography" list="category-suggestions">
                                         <datalist id="category-suggestions">
                                             ${[...new Set(QuestionService.getAllQuestions().map(q => q.category).filter(Boolean))]
                                                 .map(c => `<option value="${UI.escapeHtml(c)}"></option>`).join('')}
@@ -121,7 +121,7 @@
                             </div>
                             <div class="form-group">
                                 <label for="q-unit">Unit <span class="text-muted" style="font-weight: 400;">(optional)</span></label>
-                                <input type="text" id="q-unit" class="form-control" placeholder="e.g., kΩ">
+                                <input type="text" id="q-unit" class="form-control" placeholder="e.g., km">
                             </div>
                         </div>
                     `;

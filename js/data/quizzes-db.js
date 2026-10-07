@@ -8,7 +8,7 @@
     const QUIZZES_KEY = 'quizzes';
     // Keys used before quizzes existed; moved into the first quiz on upgrade
     const LEGACY_KEYS = ['questions', 'teams', 'history', 'settings'];
-    const DEFAULT_QUIZ_NAME = 'Engineering Quiz';
+    const DEFAULT_QUIZ_NAME = 'My First Quiz';
 
     function newId() {
         return 'QZ' + Date.now().toString(36) + Math.floor(Math.random() * 1296).toString(36);
