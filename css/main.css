@@ -668,3 +668,12 @@ textarea.form-control {
         transition-duration: 0.01ms !important;
     }
 }
+
+/* Installed web app */
+.standalone-only { display: none !important; }
+.standalone .standalone-only { display: inline-flex !important; }
+
+/* Keep content clear of the notch / home indicator when installed */
+.standalone .sidebar { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
+.standalone .top-header { padding-top: env(safe-area-inset-top); height: calc(var(--header-height) + env(safe-area-inset-top)); }
+.standalone .public-header { padding-top: calc(0.75rem + env(safe-area-inset-top)); }

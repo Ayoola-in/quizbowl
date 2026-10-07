@@ -23,6 +23,21 @@ npx serve .
 python -m http.server 8000
 ```
 
+## Install on a Phone (Web App)
+QuizBowl is an installable web app (PWA). Once installed it opens from the home screen like a normal app, full screen, and **works offline**. All quizzes, questions and scores are stored on the phone itself.
+
+Install it from the deployed **https** site (e.g. your Vercel URL). Phones only allow installing over https, so opening `index.html` as a file or over plain `http://` on your Wi-Fi will not offer the install option.
+
+- **Android (Chrome):** open the site, then tap **Install App** in the sidebar menu, or browser menu (⋮) → **Install app** / **Add to Home screen**.
+- **iPhone / iPad (Safari):** open the site, tap **Share** → **Add to Home Screen**.
+
+Open the app once while online so everything is saved for offline use. After that it runs with no connection. Math formulas (MathJax) and fonts are also stored the first time they load online.
+
+Notes:
+- Data lives inside the installed app on that device. It is not synced between devices. On iPhone, the home screen app also keeps separate data from Safari.
+- Inside the installed app, **Public Display** opens in the same window. Use the back arrow in its header to return to the admin pages.
+- Updates you deploy are picked up automatically the next time the app is opened online. If you add or rename files, also add them to `APP_SHELL` in `sw.js` and bump `CACHE_VERSION`.
+
 ## Adding Questions
 Click **Questions** on the sidebar, then click **+ Add Question**. Enter the question details. You can use standard LaTeX syntax wrapped in `$$` for block math or `\\(` `\\)` for inline math.
 
