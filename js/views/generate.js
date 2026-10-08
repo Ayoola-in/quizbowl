@@ -485,16 +485,18 @@
                         <h2>${R.imported ? `${UI().icon('checkCircle')} Added ${R.addedCount} question${R.addedCount === 1 ? '' : 's'} to ${esc(R.quizName)}` : `Review ${R.drafts.length} generated question${R.drafts.length === 1 ? '' : 's'}`}</h2>
                         <p>${R.imported
                             ? 'They\'re in the Question Bank and ready to use on the public display.'
-                            : `Untick any you don't want, or edit them. They'll be added to <strong>${esc(R.quizName)}</strong>.`}</p>
+                            : `Untick any you don't want, or edit them. Then add them to <strong>${esc(R.quizName)}</strong>, or download them as a PDF without adding them.`}</p>
                     </div>
                     <div class="gen-results-actions">
                         ${R.imported ? `
+                            <button type="button" class="btn btn-secondary" id="gen-pdf">${UI().icon('download')} Download PDF</button>
                             <a href="#questions" class="btn btn-primary">${UI().icon('questions')} Open Question Bank</a>
                             <button type="button" class="btn btn-secondary" id="gen-clear-results">Generate more</button>
                         ` : `
                             <button type="button" class="btn btn-ghost btn-sm" id="gen-select-all">Select all</button>
                             <button type="button" class="btn btn-ghost btn-sm" id="gen-select-none">Select none</button>
                             <button type="button" class="btn btn-secondary" id="gen-discard">Discard</button>
+                            <button type="button" class="btn btn-secondary" id="gen-pdf" ${selected.length ? '' : 'disabled'} title="Download the selected questions as a PDF without adding them">${UI().icon('download')} Download PDF</button>
                             <button type="button" class="btn btn-primary" id="gen-add" ${selected.length ? '' : 'disabled'}>${UI().icon('plus')} Add ${selected.length} to quiz</button>
                         `}
                     </div>
@@ -748,6 +750,37 @@
             return auto;
         },
 
+        // Export the reviewed questions straight to PDF, without adding them to the quiz
+        downloadPdf: function() {
+            const R = S.result;
+            if (!R) return;
+            const drafts = R.imported ? R.drafts : R.drafts.filter(d => d.selected);
+            if (!drafts.length) {
+                Toast().show('Select at least one question.', 'warning');
+                return;
+            }
+            const invalid = drafts.map(d => AI().Generator.validateDraft(d)).find(Boolean);
+            if (invalid) {
+                Toast().show(invalid, 'warning');
+                return;
+            }
+            const settings = window.QuizBowl.Data.SettingsDB.getSettings();
+            const prefixes = { mcq: 'MCQ', true_false: 'TF', theory: 'THRY', calculation: 'CALC' };
+            const counters = {};
+            const questions = drafts.map(d => {
+                const q = AI().Generator.toAppQuestion(d, settings, R.meta);
+                counters[d.type] = (counters[d.type] || 0) + 1;
+                q.id = `${prefixes[d.type]}${String(counters[d.type]).padStart(3, '0')}`;
+                return q;
+            });
+            const topic = S.topic.trim();
+            window.QuizBowl.Export.openDialog(questions, {
+                title: topic ? `${topic} quiz` : `${R.quizName} questions`,
+                quizName: R.quizName,
+                heading: `Download ${questions.length} question${questions.length === 1 ? '' : 's'} as PDF`
+            });
+        },
+
         // ---------- Events ----------
         bind: function(container) {
             const view = container.querySelector('.generate-view');
@@ -889,6 +922,7 @@
                 const R = S.result;
                 if (!R) return;
                 if (t.closest('#gen-add') || t.closest('#gen-add-bottom')) return self.addToQuiz();
+                if (t.closest('#gen-pdf')) return self.downloadPdf();
                 if (t.closest('#gen-select-all') || t.closest('#gen-select-none')) {
                     const on = !!t.closest('#gen-select-all');
                     R.drafts.forEach(d => { d.selected = on; });

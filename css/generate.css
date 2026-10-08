@@ -10,6 +10,7 @@
 }
 
 .gen-main { display: grid; gap: var(--spacing-lg); min-width: 0; }
+.gen-main > * { min-width: 0; } /* let long lines truncate instead of widening the page */
 
 .gen-side { position: sticky; top: var(--spacing-lg); }
 
@@ -345,4 +346,78 @@
     .gen-results-actions { width: 100%; }
     .gen-results-actions .btn-primary { flex: 1; }
     .gen-q { padding: var(--spacing-md); }
+}
+
+/* Choice cards (radio / checkbox cards) */
+.choice-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: var(--spacing-sm); }
+
+.choice-card {
+    position: relative;
+    display: flex;
+    gap: 0.6rem;
+    align-items: flex-start;
+    padding: 0.75rem 0.85rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    transition: border-color var(--transition), background-color var(--transition);
+}
+
+.choice-card:hover { border-color: var(--border-strong); }
+.choice-card input { margin-top: 0.2rem; flex-shrink: 0; width: 17px; height: 17px; accent-color: var(--color-accent); }
+.choice-card strong { display: block; font-size: 0.875rem; }
+.choice-card small { display: block; font-size: 0.775rem; color: var(--text-muted); margin-top: 0.1rem; }
+.choice-card:has(input:checked) { border-color: var(--color-accent); background: var(--color-accent-soft); }
+.choice-card:has(input:focus-visible) { box-shadow: var(--focus-ring); }
+.choice-card.is-empty { opacity: 0.5; cursor: default; }
+
+/* Export */
+.export-inline { display: flex; flex-wrap: wrap; gap: var(--spacing-sm); }
+.export-toggles .is-muted, .export-options .is-muted { opacity: 0.5; }
+.export-mode { margin-bottom: var(--spacing-md); }
+
+.export-filter-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; margin-bottom: var(--spacing-md); }
+
+.export-note { display: flex; align-items: center; gap: 0.5rem; color: var(--text-secondary); font-size: 0.9rem; }
+.export-note .icon { color: var(--color-success); }
+
+.export-type-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--spacing-sm); }
+.export-type span { display: flex; flex-direction: column; gap: 0.25rem; align-items: flex-start; }
+
+.export-pick-tools { display: flex; flex-wrap: wrap; gap: var(--spacing-sm); margin-bottom: var(--spacing-sm); }
+.export-pick-tools .filter-search { flex: 1 1 220px; }
+.export-pick-bar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 0.5rem; font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin-bottom: var(--spacing-sm); }
+
+.export-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    max-height: 460px;
+    overflow-y: auto;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+}
+
+.export-list li + li { border-top: 1px solid var(--border-color); }
+
+.export-item { display: flex; align-items: center; gap: 0.6rem; padding: 0.55rem 0.75rem; cursor: pointer; font-size: 0.85rem; }
+.export-item:hover { background: var(--bg-hover); }
+.export-item.is-picked { background: var(--color-accent-soft); }
+.export-item input { width: 16px; height: 16px; flex-shrink: 0; accent-color: var(--color-accent); }
+.export-item .qc-id { flex-shrink: 0; min-width: 58px; }
+.export-item-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-primary); }
+.export-empty { padding: var(--spacing-md); color: var(--text-muted); text-align: center; font-size: 0.875rem; }
+
+.gen-summary-list dt .type-chip { font-size: 0.7rem; }
+
+/* Wide dialog (PDF options) */
+.modal.modal-wide { max-width: 720px; max-height: calc(100vh - 2 * var(--spacing-md)); display: flex; flex-direction: column; }
+.modal-wide .modal-body { overflow-y: auto; margin: var(--spacing-md) calc(-1 * var(--spacing-lg)) 0; padding: 0 var(--spacing-lg); }
+.modal-wide .modal-body .form-group { margin: 0 0 var(--spacing-md); }
+.modal-wide .modal-actions { margin-top: var(--spacing-md); padding-top: var(--spacing-md); border-top: 1px solid var(--border-color); }
+.modal-wide .modal-icon { background: var(--color-accent-soft); color: var(--color-accent-hover); }
+
+@media (max-width: 520px) {
+    .export-item .qc-id { display: none; }
+    .modal-wide .modal-actions .btn { flex: 1; }
 }

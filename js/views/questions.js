@@ -29,6 +29,9 @@
                             <p>Browse, filter and open questions to score them.</p>
                         </div>
                         <div class="page-actions">
+                            <button class="btn btn-secondary" onclick="window.QuizBowl.Router.navigate('export')" title="Download questions as a PDF">
+                                ${UI.icon('download')} Export PDF
+                            </button>
                             <button class="btn btn-secondary" onclick="window.QuizBowl.Router.navigate('generate')" title="Create questions from documents with AI">
                                 ${UI.icon('sparkles')} Generate with AI
                             </button>
@@ -73,6 +76,9 @@
                         <span><strong id="delete-count">0</strong> selected</span>
                         <div style="display: flex; gap: 0.25rem;">
                             <button class="btn btn-ghost btn-sm" onclick="window.QuizBowl.Views.Questions.clearSelection()">Cancel</button>
+                            <button class="btn btn-ghost btn-sm" onclick="window.QuizBowl.Views.Questions.exportSelected()">
+                                ${UI.icon('download')} Export PDF
+                            </button>
                             <button id="btn-delete-selected" class="btn btn-danger btn-sm" onclick="window.QuizBowl.Views.Questions.deleteSelected()">
                                 ${UI.icon('trash')} Delete
                             </button>
@@ -217,6 +223,13 @@
             });
             document.getElementById('delete-count').textContent = checkboxes.length;
             bar.classList.toggle('show', checkboxes.length > 0);
+        },
+
+        exportSelected: function() {
+            const ids = [...document.querySelectorAll('.q-select-checkbox:checked')].map(cb => cb.getAttribute('data-id'));
+            if (!ids.length) return;
+            window.QuizBowl.Views.Export.preselect(ids);
+            window.QuizBowl.Router.navigate('export');
         },
 
         clearSelection: function() {

@@ -12,7 +12,8 @@
         'history': 'History',
         'settings': 'Settings',
         'quizzes': 'Quizzes',
-        'generate': 'AI Generator'
+        'generate': 'AI Generator',
+        'export': 'Export PDF'
     };
 
     window.QuizBowl.Router = {
@@ -26,6 +27,7 @@
             'settings': () => window.QuizBowl.Views.Settings.render(document.getElementById('view-container')),
             'quizzes': () => window.QuizBowl.Views.Quizzes.render(document.getElementById('view-container')),
             'generate': () => window.QuizBowl.Views.Generate.render(document.getElementById('view-container')),
+            'export': () => window.QuizBowl.Views.Export.render(document.getElementById('view-container')),
         },
 
         init: function() {

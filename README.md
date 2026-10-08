@@ -54,6 +54,22 @@ Notes:
 - **Old file formats** (.doc, .ppt, .xls) aren't supported. Save them as PDF or the newer format first.
 - **Large requests**: up to 100 questions per run, generated in batches of 15.
 
+## Export to PDF
+Open **Export PDF** in the sidebar (or **Export PDF** on the Questions page) to make a printable question paper:
+
+1. **Choose questions**: everything, whole question types (tick one or more), or hand-picked questions with search and type filters. You can limit it to questions not used yet, or only ones already used. Ticking questions in the Question Bank and pressing **Export PDF** opens the export page with them pre-selected.
+2. **Answers**:
+   - **Show the answers**: correct options are highlighted and ticked for multiple choice and true/false, and answers appear under short-answer and calculation questions.
+   - **Answer key at the end**: questions first, then a separate answer key page.
+   - **No answers**: a clean question paper.
+3. **Layout**: title, instructions, A4 or Letter, normal or large text, explanations, marks, sections per question type, name/date/score lines, writing lines for answers, shuffled order, and the app's question numbers (e.g. MCQ004).
+
+**Download PDF** saves a real PDF file. It uses an embedded Unicode font, so accented letters (é, ẹ, ọ, ṣ) work, and maths is converted to readable symbols (x², √(16), π, ≤).
+
+**Print** opens the browser's print window, where you can choose "Save as PDF". Use it for scripts the PDF font doesn't include (Arabic, Chinese and others) or for fully typeset maths.
+
+In the **AI Generator**, the review list also has **Download PDF**. It downloads the generated questions straight away without adding them to the quiz.
+
 ## Adding Questions
 Click **Questions** on the sidebar, then click **+ Add Question**. Enter the question details. You can use standard LaTeX syntax wrapped in `$$` for block math or `\\(` `\\)` for inline math.
 

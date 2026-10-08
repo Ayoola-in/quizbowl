@@ -3,7 +3,7 @@
  * Service worker: precaches the app shell so the installed app opens offline.
  * Bump CACHE_VERSION whenever the file list below changes.
  */
-const CACHE_VERSION = 'quizr-v4';
+const CACHE_VERSION = 'quizr-v5';
 const RUNTIME_CACHE = 'quizbowl-runtime-v1';
 
 const APP_SHELL = [
@@ -32,6 +32,8 @@ const APP_SHELL = [
     './js/ai/ai-providers.js',
     './js/ai/doc-extract.js',
     './js/ai/question-generator.js',
+    './js/export/pdf-export.js',
+    './js/export/export-options.js',
     './js/data/storage.js',
     './js/data/questions-db.js',
     './js/data/teams-db.js',
@@ -52,10 +54,11 @@ const APP_SHELL = [
     './js/views/history.js',
     './js/views/settings.js',
     './js/views/quizzes.js',
-    './js/views/generate.js'
+    './js/views/generate.js',
+    './js/views/export.js'
 ];
 
-// Third-party files (fonts, MathJax, confetti, document readers) cached the first time they load online
+// Third-party files (fonts, MathJax, confetti, document readers, PDF maker) cached the first time they load online
 const CDN_HOSTS = ['fonts.googleapis.com', 'fonts.gstatic.com', 'cdn.jsdelivr.net', 'cdnjs.cloudflare.com'];
 
 self.addEventListener('install', (event) => {
