@@ -13,7 +13,8 @@
         'settings': 'Settings',
         'quizzes': 'Quizzes',
         'generate': 'AI Generator',
-        'export': 'Export PDF'
+        'export': 'Export PDF',
+        'account': 'Account & Sync'
     };
 
     window.QuizBowl.Router = {
@@ -28,6 +29,7 @@
             'quizzes': () => window.QuizBowl.Views.Quizzes.render(document.getElementById('view-container')),
             'generate': () => window.QuizBowl.Views.Generate.render(document.getElementById('view-container')),
             'export': () => window.QuizBowl.Views.Export.render(document.getElementById('view-container')),
+            'account': () => window.QuizBowl.Views.Account.render(document.getElementById('view-container')),
         },
 
         init: function() {

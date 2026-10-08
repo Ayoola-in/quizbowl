@@ -68,6 +68,37 @@ window.QuizBowl.App = {
     switchQuiz: function(id, route = 'dashboard') {
         window.QuizBowl.Data.QuizzesDB.setActive(id);
         window.QuizBowl.App.showActiveQuiz(route);
+    },
+
+    // Sidebar dot: green = all synced, amber = changes to sync, red = needs a decision
+    refreshCloudBadge: function() {
+        const Cloud = window.QuizBowl.Cloud;
+        const dot = document.getElementById('cloud-dot');
+        if (!dot || !Cloud) return;
+        if (!Cloud.configured || !Cloud.user()) { dot.hidden = true; return; }
+        const statuses = window.QuizBowl.Data.QuizzesDB.getAll().map(q => Cloud.status(q.id)).filter(s => s !== 'local');
+        if (!statuses.length) { dot.hidden = true; return; }
+        const tone = statuses.some(s => s === 'conflict' || s === 'cloud-deleted') ? 'danger'
+            : statuses.some(s => s === 'changed' || s === 'cloud-newer') ? 'warning' : 'success';
+        dot.hidden = false;
+        dot.className = `cloud-dot cloud-dot-${tone}`;
+        dot.title = tone === 'danger' ? 'A synced quiz needs your attention' : tone === 'warning' ? 'Some quizzes have changes to sync' : 'All synced quizzes are up to date';
+    },
+
+    watchCloud: function() {
+        const Cloud = window.QuizBowl.Cloud;
+        if (!Cloud) return;
+        Cloud.subscribe(event => {
+            window.QuizBowl.App.refreshCloudBadge();
+            // Downloaded data for the quiz on screen: redraw the page (except the sync page, which redraws itself)
+            if ((event.type === 'downloaded' || event.type === 'active-replaced')
+                && event.localId === window.QuizBowl.Data.QuizzesDB.getActiveId()
+                && window.QuizBowl.State.currentRoute !== 'account') {
+                window.QuizBowl.App.refreshQuizSwitcher();
+                window.QuizBowl.Router.handleRoute();
+            }
+        });
+        window.addEventListener('hashchange', () => window.QuizBowl.App.refreshCloudBadge());
     }
 };
 

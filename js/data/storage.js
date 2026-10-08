@@ -46,10 +46,33 @@
         return `${PREFIX}quiz_${quizId}_${key}`;
     }
 
-    function activeKey(key) {
+    function activeQuizId() {
         const quizId = read(PREFIX + ACTIVE_QUIZ_KEY, null);
         if (!quizId) throw new Error('No active quiz selected.');
-        return quizKey(quizId, key);
+        return quizId;
+    }
+
+    function activeKey(key) {
+        return quizKey(activeQuizId(), key);
+    }
+
+    // Listeners told when a quiz's saved data really changes (used by cloud sync)
+    const changeListeners = [];
+
+    function writeQuiz(quizId, key, value, silent) {
+        const fullKey = quizKey(quizId, key);
+        const next = JSON.stringify(value);
+        let previous = null;
+        try { previous = localStorage.getItem(fullKey); } catch (e) { /* treat as changed */ }
+        if (previous === next) return true;
+        try {
+            localStorage.setItem(fullKey, next);
+        } catch (error) {
+            console.error(`Error writing ${fullKey} to storage:`, error);
+            return false;
+        }
+        if (!silent) changeListeners.forEach(fn => { try { fn(quizId, key); } catch (e) { console.error(e); } });
+        return true;
     }
 
     window.QuizBowl.Data.Storage = {
@@ -62,7 +85,7 @@
         },
 
         set: function(key, value) {
-            return write(activeKey(key), value);
+            return writeQuiz(activeQuizId(), key, value, false);
         },
 
         remove: function(key) {
@@ -74,8 +97,13 @@
             return read(quizKey(quizId, key), defaultValue);
         },
 
-        setForQuiz: function(quizId, key, value) {
-            return write(quizKey(quizId, key), value);
+        // `silent` skips change listeners, e.g. when cloud sync itself writes downloaded data
+        setForQuiz: function(quizId, key, value, { silent = false } = {}) {
+            return writeQuiz(quizId, key, value, silent);
+        },
+
+        onQuizChange: function(listener) {
+            changeListeners.push(listener);
         },
 
         removeQuizData: function(quizId) {

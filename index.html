@@ -40,6 +40,7 @@
     <link rel="stylesheet" href="css/questions.css">
     <link rel="stylesheet" href="css/views.css">
     <link rel="stylesheet" href="css/generate.css">
+    <link rel="stylesheet" href="css/account.css">
 
     <!-- MathJax for rendering Mathematical Expressions -->
     <script>
@@ -79,6 +80,7 @@
                 <div class="nav-label" style="margin-top: var(--spacing-md);">Configuration</div>
                 <a href="#settings" class="nav-item" data-route="settings"><span data-icon="settings"></span>Settings</a>
                 <a href="#quizzes" class="nav-item" data-route="quizzes"><span data-icon="list"></span>All Quizzes</a>
+                <a href="#account" class="nav-item" data-route="account"><span data-icon="cloud"></span><span class="nav-text">Account &amp; Sync</span><span class="cloud-dot" id="cloud-dot" hidden></span></a>
             </nav>
             <div class="sidebar-footer">
                 <a href="#" class="nav-item" data-install-app hidden>
@@ -134,6 +136,10 @@
     <script src="js/data/seed-data.js"></script>
     <script src="js/data/quizzes-db.js"></script>
 
+    <!-- Accounts & cloud sync (optional) -->
+    <script src="js/cloud/config.js"></script>
+    <script src="js/cloud/cloud.js"></script>
+
     <!-- Services -->
     <script src="js/services/question-service.js"></script>
     <script src="js/services/team-service.js"></script>
@@ -167,6 +173,7 @@
     <script src="js/views/quizzes.js"></script>
     <script src="js/views/generate.js"></script>
     <script src="js/views/export.js"></script>
+    <script src="js/views/account.js"></script>
 
     <!-- Router -->
     <script src="js/router.js"></script>
@@ -181,6 +188,9 @@
             window.QuizBowl.Services.QuestionService.migrateIds();
             // Start Router
             window.QuizBowl.Router.init();
+            // Optional accounts & cloud sync (does nothing until someone signs in)
+            window.QuizBowl.App.watchCloud();
+            window.QuizBowl.Cloud.init();
         });
     </script>
 </body>

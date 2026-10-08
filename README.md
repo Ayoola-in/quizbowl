@@ -54,6 +54,16 @@ Notes:
 - **Old file formats** (.doc, .ppt, .xls) aren't supported. Save them as PDF or the newer format first.
 - **Large requests**: up to 100 questions per run, generated in batches of 15.
 
+## Accounts & Cloud Sync (optional)
+People can sign in with **Google** or with **email and password**. Email sign-ups must confirm their address first. Signing in lets them back up quizzes and use them on several devices.
+
+- Open **Account & Sync** in the sidebar. Each quiz can be **uploaded**, **downloaded**, **synced**, or kept only on the device.
+- **Auto-sync** can be turned on per quiz to keep it up to date whenever the device is online.
+- If a quiz was changed on two devices, you choose which version to keep.
+- The installed app still works fully offline. Without signing in, nothing changes.
+
+To turn this on for your site, follow **[SETUP-CLOUD.md](SETUP-CLOUD.md)**. It covers creating a free Supabase project, running `supabase/schema.sql`, and setting up Google sign-in. Then fill in `js/cloud/config.js`.
+
 ## Export to PDF
 Open **Export PDF** in the sidebar (or **Export PDF** on the Questions page) to make a printable question paper:
 
