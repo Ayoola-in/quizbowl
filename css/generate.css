@@ -374,6 +374,25 @@
 /* Export */
 .export-inline { display: flex; flex-wrap: wrap; gap: var(--spacing-sm); }
 .export-toggles .is-muted, .export-options .is-muted { opacity: 0.5; }
+.export-brand { display: flex; gap: var(--spacing-sm); align-items: flex-start; }
+.export-logo-preview {
+    flex-shrink: 0;
+    width: 76px;
+    height: 76px;
+    display: grid;
+    place-items: center;
+    border: 1px dashed var(--border-strong);
+    border-radius: var(--border-radius);
+    background: #fff;
+    color: var(--text-muted);
+    overflow: hidden;
+}
+.export-logo-preview img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.export-brand-fields { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+.export-logo-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.export-logo-actions label { cursor: pointer; }
+.export-wm-text { margin-top: var(--spacing-sm); }
+.export-options [hidden] { display: none !important; }
 .export-mode { margin-bottom: var(--spacing-md); }
 
 .export-filter-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; margin-bottom: var(--spacing-md); }

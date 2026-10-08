@@ -2,9 +2,13 @@
  * js/export/export-options.js
  * The PDF options panel (answers, title, layout) shared by the Export page
  * and the export dialog, plus the dialog itself (used by the AI generator).
+ * Branding (organization logo and name, watermark) is part of the panel; the
+ * logo is kept under its own key as a downscaled PNG data URL.
  */
 (function() {
     const PREFS_KEY = 'export_prefs';
+    const LOGO_KEY = 'export_logo';
+    const LOGO_MAX = 480;   // longest side in px; keeps the stored image small
     const DEFAULTS = {
         answers: 'none',
         explanations: true,
@@ -16,7 +20,10 @@
         answerSpace: true,
         paper: 'a4',
         textSize: 'normal',
-        instructions: ''
+        instructions: '',
+        orgName: '',
+        watermark: 'none',      // none | text | logo
+        watermarkText: ''
     };
 
     const ANSWER_MODES = [
@@ -35,11 +42,45 @@
     function savePrefs(patch) {
         Storage().setGlobal(PREFS_KEY, { ...getPrefs(), ...patch });
     }
+    function getLogo() {
+        const logo = Storage().getGlobal(LOGO_KEY, null);
+        return logo && logo.data ? logo : null;
+    }
+
+    // Read an image file and shrink it to a PNG no larger than LOGO_MAX on its longest side
+    function loadLogo(file) {
+        return new Promise((resolve, reject) => {
+            if (!file || !/^image\//.test(file.type)) return reject(new Error('Choose a PNG, JPG, WebP or SVG image.'));
+            const reader = new FileReader();
+            reader.onerror = () => reject(new Error('That image couldn\'t be read.'));
+            reader.onload = () => {
+                const img = new Image();
+                img.onerror = () => reject(new Error('That image couldn\'t be opened.'));
+                img.onload = () => {
+                    const w0 = img.naturalWidth || img.width || LOGO_MAX;
+                    const h0 = img.naturalHeight || img.height || LOGO_MAX;
+                    const scale = Math.min(1, LOGO_MAX / Math.max(w0, h0));
+                    const canvas = document.createElement('canvas');
+                    canvas.width = Math.max(1, Math.round(w0 * scale));
+                    canvas.height = Math.max(1, Math.round(h0 * scale));
+                    canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+                    resolve({ data: canvas.toDataURL('image/png'), w: canvas.width, h: canvas.height });
+                };
+                img.src = reader.result;
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+
+    const logoPreview = logo => logo
+        ? `<img src="${logo.data}" alt="Organization logo">`
+        : UI().icon('image');
 
     const Options = {
         /** HTML for the options panel. `p` prefixes element IDs so two panels can coexist. */
         html: function(p, title) {
             const prefs = getPrefs();
+            const logo = getLogo();
             const toggle = (key, label, hint) => `
                 <label class="gen-toggle" data-opt-row="${key}">
                     <input type="checkbox" id="${p}-${key}" data-opt="${key}" ${prefs[key] ? 'checked' : ''}>
@@ -75,6 +116,31 @@
                         </div>
                     </div>
                     <div class="form-group">
+                        <span class="form-label">Organization <span class="text-muted" style="font-weight: 400;">(optional)</span></span>
+                        <div class="export-brand">
+                            <div class="export-logo-preview" id="${p}-logo-preview">${logoPreview(logo)}</div>
+                            <div class="export-brand-fields">
+                                <input type="text" id="${p}-orgName" class="form-control" data-opt="orgName" value="${esc(prefs.orgName)}" maxlength="90" placeholder="Organization name, e.g., Greenfield High School" aria-label="Organization name">
+                                <div class="export-logo-actions">
+                                    <label class="btn btn-secondary btn-sm">
+                                        ${UI().icon('upload')} <span id="${p}-logo-label">${logo ? 'Change logo' : 'Add logo'}</span>
+                                        <input type="file" id="${p}-logo-file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml" hidden>
+                                    </label>
+                                    <button type="button" class="btn btn-ghost btn-sm" id="${p}-logo-remove" ${logo ? '' : 'hidden'}>${UI().icon('trash')} Remove logo</button>
+                                </div>
+                            </div>
+                        </div>
+                        <small class="form-hint">The logo and name are centered at the top of the first page.</small>
+                    </div>
+                    <div class="form-group">
+                        <span class="form-label">Watermark</span>
+                        <div class="segmented" data-seg="watermark" role="radiogroup" aria-label="Watermark">
+                            ${[['none', 'None'], ['text', 'Text'], ['logo', 'Logo']].map(([v, l]) => `<button type="button" role="radio" data-value="${v}" class="${prefs.watermark === v ? 'active' : ''}" aria-checked="${prefs.watermark === v}">${l}</button>`).join('')}
+                        </div>
+                        <input type="text" id="${p}-watermarkText" class="form-control export-wm-text" data-opt="watermarkText" value="${esc(prefs.watermarkText)}" maxlength="40" placeholder="e.g., CONFIDENTIAL (leave empty to use the organization name)" aria-label="Watermark text">
+                        <small class="form-hint" id="${p}-wm-hint"></small>
+                    </div>
+                    <div class="form-group">
                         <label for="${p}-instructions">Instructions at the top <span class="text-muted" style="font-weight: 400;">(optional)</span></label>
                         <textarea id="${p}-instructions" class="form-control" rows="2" data-opt="instructions" placeholder="e.g., Answer all questions. Circle the correct option. Time allowed: 30 minutes.">${esc(prefs.instructions)}</textarea>
                     </div>
@@ -99,20 +165,54 @@
                 root.querySelector('[data-opt-row="explanations"]').classList.toggle('is-muted', answers === 'none');
                 root.querySelector('[data-opt-row="answerSpace"]').classList.toggle('is-muted', answers === 'marked');
                 root.querySelector('[data-opt-row="studentFields"]').classList.toggle('is-muted', answers === 'marked');
+                const wm = getPrefs().watermark;
+                root.querySelector(`#${p}-watermarkText`).hidden = wm !== 'text';
+                root.querySelector(`#${p}-wm-hint`).textContent = wm === 'none' ? 'No watermark.'
+                    : wm === 'logo' && !getLogo() ? 'Add a logo above to use it as the watermark.'
+                    : 'Printed faintly across the middle of every page.';
             };
-            root.addEventListener('change', e => {
+            const showLogo = () => {
+                const logo = getLogo();
+                root.querySelector(`#${p}-logo-preview`).innerHTML = logoPreview(logo);
+                root.querySelector(`#${p}-logo-label`).textContent = logo ? 'Change logo' : 'Add logo';
+                root.querySelector(`#${p}-logo-remove`).hidden = !logo;
+                sync();
+            };
+            root.addEventListener('change', async e => {
+                if (e.target.id === `${p}-logo-file`) {
+                    const file = e.target.files && e.target.files[0];
+                    e.target.value = '';
+                    if (!file) return;
+                    try {
+                        const logo = await loadLogo(file);
+                        if (!Storage().setGlobal(LOGO_KEY, logo)) throw new Error('The logo couldn\'t be saved. Try a smaller image.');
+                        showLogo();
+                    } catch (err) {
+                        window.QuizBowl.Components.Toast.show(err.message, 'danger');
+                    }
+                    return;
+                }
                 const key = e.target.getAttribute('data-opt');
                 if (!key) return;
                 savePrefs({ [key]: e.target.type === 'checkbox' ? e.target.checked : e.target.value });
                 sync();
                 root.dispatchEvent(new CustomEvent('options-change', { bubbles: true }));
             });
-            root.querySelector(`#${p}-instructions`).addEventListener('input', e => savePrefs({ instructions: e.target.value }));
+            root.querySelector(`#${p}-logo-remove`).addEventListener('click', () => {
+                Storage().removeGlobal(LOGO_KEY);
+                showLogo();
+            });
+            // Save typed text as it changes, so Download picks it up without leaving the field
+            root.addEventListener('input', e => {
+                const key = e.target.getAttribute('data-opt');
+                if (key && (e.target.type === 'text' || e.target.tagName === 'TEXTAREA')) savePrefs({ [key]: e.target.value });
+            });
             root.querySelectorAll('[data-seg]').forEach(seg => seg.addEventListener('click', e => {
                 const btn = e.target.closest('button[data-value]');
                 if (!btn) return;
                 seg.querySelectorAll('button').forEach(b => { b.classList.toggle('active', b === btn); b.setAttribute('aria-checked', b === btn); });
                 savePrefs({ [seg.getAttribute('data-seg')]: btn.getAttribute('data-value') });
+                sync();
             }));
             sync();
         },
@@ -120,7 +220,7 @@
         read: function(p, extra = {}) {
             const prefs = getPrefs();
             const title = (document.getElementById(`${p}-title`).value || '').trim();
-            return { ...prefs, ...extra, title: title || extra.title || 'Quiz' };
+            return { ...prefs, ...extra, title: title || extra.title || 'Quiz', logo: getLogo() };
         },
 
         summary: function() {

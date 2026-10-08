@@ -73,6 +73,7 @@ Open **Export PDF** in the sidebar (or **Export PDF** on the Questions page) to 
    - **Answer key at the end**: questions first, then a separate answer key page.
    - **No answers**: a clean question paper.
 3. **Layout**: title, instructions, A4 or Letter, normal or large text, explanations, marks, sections per question type, name/date/score lines, writing lines for answers, shuffled order, and the app's question numbers (e.g. MCQ004).
+4. **Organization and watermark** (optional): add your organization's logo (PNG, JPG, WebP or SVG) and name, and they're centered at the top of the first page, with the name also in the footer. A **watermark** can be printed faintly across the middle of every page: either text (e.g. CONFIDENTIAL, or the organization name by default) or the logo. A logo with a transparent background makes the cleanest watermark. The logo is remembered on this device.
 
 **Download PDF** saves a real PDF file. It uses an embedded Unicode font, so accented letters (é, ẹ, ọ, ṣ) work, and maths is converted to readable symbols (x², √(16), π, ≤).
 

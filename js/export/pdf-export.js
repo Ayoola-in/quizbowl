@@ -9,7 +9,9 @@
  *
  * Options: { title, instructions, answers: 'marked'|'key'|'none', explanations,
  *            showMarks, showIds, groupByType, shuffle, studentFields, answerSpace,
- *            paper: 'a4'|'letter', textSize: 'normal'|'large', quizName }
+ *            paper: 'a4'|'letter', textSize: 'normal'|'large', quizName,
+ *            orgName, logo: { data (PNG data URL), w, h } | null,
+ *            watermark: 'none'|'text'|'logo', watermarkText }
  */
 (function() {
     const JSPDF_URL = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/3.0.4/jspdf.umd.min.js';
@@ -243,6 +245,23 @@
         return sections.reduce((sum, s) => sum + s.items.reduce((a, i) => a + (Number(i.marks) || 0), 0), 0);
     }
 
+    // What to print faintly behind every page: { logo } or { text }, or null for none.
+    // "Logo" without a logo falls back to text.
+    function watermarkOf(opts) {
+        if (!opts.watermark || opts.watermark === 'none') return null;
+        if (opts.watermark === 'logo' && opts.logo && opts.logo.data) return { logo: opts.logo };
+        const text = String(opts.watermarkText || '').trim() || String(opts.orgName || '').trim() || 'CONFIDENTIAL';
+        return { text };
+    }
+
+    // Logo size (mm) that fits inside maxW x maxH, keeping its shape
+    function fitLogo(logo, maxW, maxH) {
+        const ratio = (logo.w || 1) / (logo.h || 1);
+        let w = maxW, h = maxW / ratio;
+        if (h > maxH) { h = maxH; w = maxH * ratio; }
+        return { w, h };
+    }
+
     function today() {
         return new Date().toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' });
     }
@@ -305,8 +324,38 @@
             return doc.splitTextToSize(clean(text), width);
         }
 
+        // Drawn first on each page so the questions sit on top of it
+        const wm = watermarkOf(opts);
+        const canFade = typeof doc.GState === 'function';
+        function drawWatermark() {
+            if (!wm || (wm.logo && !canFade)) return;
+            if (canFade) {
+                doc.saveGraphicsState();
+                doc.setGState(new doc.GState({ opacity: wm.logo ? 0.08 : 0.1 }));
+            }
+            if (wm.logo) {
+                const { w, h } = fitLogo(wm.logo, page.w * 0.6, page.h * 0.5);
+                doc.addImage(wm.logo.data, 'PNG', (page.w - w) / 2, (page.h - h) / 2, w, h, 'org-logo', 'FAST');
+            } else {
+                // Diagonal text, sized to span most of the page and centred on it
+                const text = clean(wm.text);
+                const angle = 45, rad = angle * Math.PI / 180;
+                setFont('bold', 100, canFade ? COLORS.muted : [236, 239, 243]);
+                const size = Math.min(90, 100 * Math.hypot(page.w, page.h) * 0.6 / Math.max(1, doc.getTextWidth(text)));
+                doc.setFontSize(size);
+                const w = doc.getTextWidth(text);
+                const capH = size * pt2mm * 0.7;
+                doc.text(text,
+                    page.w / 2 - (w / 2) * Math.cos(rad) + (capH / 2) * Math.sin(rad),
+                    page.h / 2 + (w / 2) * Math.sin(rad) + (capH / 2) * Math.cos(rad),
+                    { angle });
+            }
+            if (canFade) doc.restoreGraphicsState();
+        }
+
         function newPage() {
             doc.addPage();
+            drawWatermark();
             y = M;
         }
         // Make sure `h` mm fit on the page (only when drawing)
@@ -362,16 +411,44 @@
         }
 
         // ----- pieces of the paper -----
+        // Organization logo and name, centred above the title
+        function letterhead() {
+            const name = String(opts.orgName || '').trim();
+            if (!name && !opts.logo) return;
+            if (opts.logo) {
+                const { w, h } = fitLogo(opts.logo, 70, 22);
+                if (!measuring) doc.addImage(opts.logo.data, 'PNG', (page.w - w) / 2, y, w, h, 'org-logo', 'FAST');
+                y += h + 2.5;
+            }
+            if (name) {
+                const size = base + 4;
+                setFont('bold', size, COLORS.text);
+                lines(name, contentW).forEach(line => {
+                    if (!measuring) doc.text(line, page.w / 2, y + size * pt2mm, { align: 'center' });
+                    y += lineH(size);
+                });
+            }
+            y += 2;
+            if (!measuring) {
+                doc.setDrawColor(...COLORS.accent);
+                doc.setLineWidth(0.6);
+                doc.line(page.w / 2 - 15, y, page.w / 2 + 15, y);
+            }
+            y += 6;
+        }
+
         function header(sections) {
             const count = sections.reduce((a, s) => a + s.items.length, 0);
             const marks = totalMarks(sections);
+            letterhead();
+            const titleTop = y;
             textBlock(opts.title || 'Quiz', M, contentW - (opts.answers === 'marked' ? 34 : 0), base + 9, 'bold', COLORS.text, 1.5);
             const meta = [opts.quizName && opts.quizName !== opts.title ? opts.quizName : '', `${count} question${count === 1 ? '' : 's'}`,
                 opts.showMarks && marks ? `${marks} marks` : '', today()].filter(Boolean).join('  ·  ');
             textBlock(meta, M, contentW, base - 1.5, 'normal', COLORS.muted, 3);
             if (opts.answers === 'marked' && !measuring) {
                 setFont('bold', base - 2, COLORS.correct);
-                doc.text('ANSWERS SHOWN', page.w - M, M + (base + 9) * pt2mm, { align: 'right' });
+                doc.text('ANSWERS SHOWN', page.w - M, titleTop + (base + 9) * pt2mm, { align: 'right' });
             }
             if (opts.instructions && opts.instructions.trim()) {
                 textBlock(opts.instructions.trim(), M, contentW, base - 0.5, 'normal', COLORS.text, 3);
@@ -589,13 +666,15 @@
             for (let i = 1; i <= n; i++) {
                 doc.setPage(i);
                 setFont('normal', 8, COLORS.muted);
-                doc.text(clean(opts.title || ''), M, page.h - 10, { maxWidth: contentW - 30 });
+                const left = [String(opts.orgName || '').trim(), opts.title || ''].filter(Boolean).join('  ·  ');
+                doc.text(clean(left), M, page.h - 10, { maxWidth: contentW - 30 });
                 doc.text(`Page ${i} of ${n}`, page.w - M, page.h - 10, { align: 'right' });
             }
         }
 
         return {
             render(sections) {
+                drawWatermark();
                 header(sections);
                 sections.forEach((section, index) => {
                     if (section.type) {
@@ -688,6 +767,17 @@
         const meta = [opts.quizName && opts.quizName !== opts.title ? opts.quizName : '', `${count} question${count === 1 ? '' : 's'}`,
             opts.showMarks && marks ? `${marks} marks` : '', today()].filter(Boolean).map(esc).join(' · ');
 
+        const orgName = String(opts.orgName || '').trim();
+        const brandHtml = !orgName && !opts.logo ? '' : `<div class="brand">
+                ${opts.logo ? `<img src="${esc(opts.logo.data)}" alt="">` : ''}
+                ${orgName ? `<div class="org">${esc(orgName)}</div>` : ''}
+            </div>`;
+        // position: fixed repeats the watermark on every printed page
+        const wm = watermarkOf(opts);
+        const wmHtml = !wm ? '' : wm.logo
+            ? `<div class="wm"><img src="${esc(wm.logo.data)}" alt=""></div>`
+            : `<div class="wm"><span style="font-size: ${Math.min(32, 190 / Math.max(1, wm.text.length * 0.62)).toFixed(1)}mm">${esc(wm.text)}</span></div>`;
+
         return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(fileName(opts).replace(/\.pdf$/, ''))}</title>
             <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
             <style>
@@ -729,13 +819,22 @@
                 .key-list b { min-width: 8mm; }
                 .key-list em { display: block; color: #64748b; font-size: 0.88em; }
                 mjx-container { font-size: 105% !important; }
+                .brand { text-align: center; margin-bottom: 6mm; }
+                .brand img { display: block; max-width: 70mm; max-height: 22mm; margin: 0 auto 2.5mm; }
+                .brand .org { font-size: 1.4em; font-weight: 700; }
+                .brand::after { content: ''; display: block; width: 30mm; margin: 2mm auto 0; border-top: 0.6mm solid #d97706; }
+                .wm { position: fixed; inset: 0; z-index: -1; display: flex; align-items: center; justify-content: center; pointer-events: none; overflow: hidden; }
+                .wm span { transform: rotate(-45deg); white-space: nowrap; font-weight: 700; color: #64748b; opacity: 0.1; }
+                .wm img { width: 60%; max-height: 50%; object-fit: contain; opacity: 0.08; }
             </style>
             <script>
                 window.MathJax = { tex: { inlineMath: [['$', '$'], ['\\\\(', '\\\\)']], displayMath: [['$$', '$$'], ['\\\\[', '\\\\]']] }, svg: { fontCache: 'local' }, startup: { typeset: false } };
             </script>
             <script src="${MATHJAX_URL}" async></script>
             </head><body>
-            ${showAnswers ? '<span class="badge">ANSWERS SHOWN</span>' : ''}
+            ${wmHtml}
+            ${brandHtml}
+            ${showAnswers ?'<span class="badge">ANSWERS SHOWN</span>' : ''}
             <h1>${esc(opts.title || 'Quiz')}</h1>
             <div class="meta">${meta}</div>
             ${opts.instructions && opts.instructions.trim() ? `<p class="instructions">${esc(opts.instructions.trim())}</p>` : ''}
