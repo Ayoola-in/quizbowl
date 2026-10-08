@@ -14,6 +14,11 @@
         'quizzes': 'Quizzes',
         'generate': 'AI Generator',
         'export': 'Export PDF',
+        'host': 'Host a Quiz',
+        'host-new': 'Host a New Quiz',
+        'host-session': 'Hosted Quiz',
+        'host-attempt': 'Score',
+        'take': 'Take a Quiz',
         'account': 'Account & Sync'
     };
 
@@ -29,6 +34,11 @@
             'quizzes': () => window.QuizBowl.Views.Quizzes.render(document.getElementById('view-container')),
             'generate': () => window.QuizBowl.Views.Generate.render(document.getElementById('view-container')),
             'export': () => window.QuizBowl.Views.Export.render(document.getElementById('view-container')),
+            'host': () => window.QuizBowl.Views.Host.render(document.getElementById('view-container')),
+            'host-new': () => window.QuizBowl.Views.HostNew.render(document.getElementById('view-container')),
+            'host-session': (id) => window.QuizBowl.Views.HostSession.render(document.getElementById('view-container'), id),
+            'host-attempt': (id) => window.QuizBowl.Views.HostAttempt.render(document.getElementById('view-container'), id),
+            'take': (code) => window.QuizBowl.Views.Take.render(document.getElementById('view-container'), code),
             'account': () => window.QuizBowl.Views.Account.render(document.getElementById('view-container')),
         },
 
@@ -65,8 +75,9 @@
                 if (globalSearch && document.activeElement !== globalSearch) globalSearch.value = '';
             }
 
-            // Update sidebar UI (question detail/add pages belong to "Questions")
-            const navRoute = (baseRoute === 'question' || baseRoute === 'add-question') ? 'questions' : baseRoute;
+            // Update sidebar UI (question detail/add pages belong to "Questions", hosting pages to "Host a Quiz")
+            const navRoute = (baseRoute === 'question' || baseRoute === 'add-question') ? 'questions'
+                : /^(host-|take$)/.test(baseRoute) ? 'host' : baseRoute;
             document.querySelectorAll('.sidebar-nav .nav-item').forEach(el => {
                 const isActive = el.getAttribute('data-route') === navRoute;
                 el.classList.toggle('active', isActive);
@@ -75,7 +86,8 @@
             });
 
             const activeQuiz = window.QuizBowl.Data.QuizzesDB.getActive();
-            document.title = `${TITLES[baseRoute] ? TITLES[baseRoute] + (param ? ' ' + param : '') : 'Not Found'} · ${activeQuiz ? activeQuiz.name + ' · ' : ''}Quizr`;
+            const showParam = param && (baseRoute === 'question' || baseRoute === 'take');
+            document.title = `${TITLES[baseRoute] ? TITLES[baseRoute] + (showParam ? ' ' + param : '') : 'Not Found'} · ${activeQuiz ? activeQuiz.name + ' · ' : ''}Quizr`;
             viewContainer.scrollTop = 0;
 
             if (this.routes[baseRoute]) {

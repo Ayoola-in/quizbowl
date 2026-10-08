@@ -81,6 +81,22 @@ Open **Export PDF** in the sidebar (or **Export PDF** on the Questions page) to 
 
 In the **AI Generator**, the review list also has **Download PDF**. It downloads the generated questions straight away without adding them to the quiz.
 
+## Host a Quiz
+Besides running a live team quiz, you can host a quiz that people take on their own, one question at a time. Open **Host a Quiz** in the sidebar and choose **Host a new quiz**:
+
+1. **Quiz and questions**: pick any of your quizzes, then use all its questions, whole types, whole categories, or hand-picked questions. Disabled questions are left out.
+2. **Question order**: group questions by category (categories A to Z), shuffle the questions, and shuffle multiple-choice options. With shuffling on, each person gets their own order.
+3. **Timer**:
+   - **Per question**: each question has its own countdown (seconds per question type, starting from the quiz's timer settings). **Next**, or running out of time, closes the question and opens the next. Earlier questions can be viewed but not changed.
+   - **Total time**: one countdown for the whole quiz. People move freely and can change answers until they submit. When the time runs out, the attempt is submitted automatically.
+4. **After the quiz**: show the answers after submitting (or just the score), and allow more than one attempt per person.
+
+**Launch quiz** gives a 6-character code. Anyone taking the quiz signs in to their Quizr account, enters their name and starts. Their name, email and account ID are saved with the score. **End quiz** (with a confirmation) submits early, and unanswered questions score 0. The clock keeps running if the page is refreshed or closed, and coming back resumes the same attempt.
+
+**Marking**: multiple choice and true/false are marked automatically. Calculation answers are compared as numbers: the answer counts if it rounds to the expected value at the same number of decimal places. Short answers count when they match the expected answer, ignoring case, accents and punctuation. Anything else waits for you on the scores page, where you can mark it or change any mark.
+
+Each hosted quiz has a **Scores** page with the code, the rules, everyone's scores (ranked, with time taken and how the attempt ended) and **Download CSV**. You can also close a quiz so no new attempts start. For now, hosted quizzes and scores are kept on this device, so the quiz is taken on the device that hosts it.
+
 ## Adding Questions
 Click **Questions** on the sidebar, then click **+ Add Question**. Enter the question details. You can use standard LaTeX syntax wrapped in `$$` for block math or `\\(` `\\)` for inline math.
 
