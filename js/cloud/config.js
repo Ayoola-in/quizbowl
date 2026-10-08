@@ -6,8 +6,8 @@
  */
 window.QuizBowl.CloudConfig = {
     // e.g. 'https://abcdefghijklmnop.supabase.co'
-    supabaseUrl: '',
+    supabaseUrl: 'https://vfzjqvthvrlfvzemnanl.supabase.co',
     // The publishable key ('sb_publishable_...') or the legacy 'anon' key.
     // Both are safe to publish. NEVER put the secret / service_role key here.
-    supabaseKey: ''
+    supabaseKey: 'sb_publishable_csAjFMkptGrWWy7wnPvxGA_Oa02uwz9'
 };
