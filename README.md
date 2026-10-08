@@ -38,6 +38,22 @@ Notes:
 - Inside the installed app, **Public Display** opens in the same window. Use the back arrow in its header to return to the admin pages.
 - Updates you deploy are picked up automatically the next time the app is opened online. If you add or rename files, also add them to `APP_SHELL` in `sw.js` and bump `CACHE_VERSION`.
 
+## AI Question Generator
+Open **AI Generator** in the sidebar (or **Generate with AI** on the Questions page) to create questions from your own material:
+
+1. **Source material**: upload PDFs, Word (.docx), PowerPoint (.pptx), OpenDocument, text/Markdown/CSV/HTML files, or photos and screenshots (paste them too). You can also paste notes, or type just a topic.
+2. **AI model**: pick ChatGPT (OpenAI), Claude (Anthropic), Gemini (Google), OpenRouter (Llama, DeepSeek, Mistral, Grok and many more) or any OpenAI-compatible server (Groq, DeepSeek, Mistral, xAI, Together, or a local Ollama / LM Studio). Paste your API key from that service. **Load my models** lists every model your key can use.
+3. **Questions**: choose how many multiple-choice, true/false, short-answer and calculation questions; options per multiple-choice question (2–6); difficulty; audience; language; an optional fixed category; and extra instructions.
+4. **Review**: edit or untick questions, then add them. They always go into the quiz you were in when you uploaded, with that quiz's default marks.
+
+Notes:
+- **Your API key** is stored only in this browser and sent only to the service you choose. Usage is billed to your account with that service.
+- **Quality checks**: questions are checked before you see them. Broken or duplicate questions are dropped and replaced, and multiple-choice answers are shuffled so the correct letter varies. Questions already in the quiz are not repeated (optional).
+- **Explanations** (optional) appear under the answer on the public display.
+- **Scanned PDFs** are read as page pictures, using up to the first 12 pages.
+- **Old file formats** (.doc, .ppt, .xls) aren't supported. Save them as PDF or the newer format first.
+- **Large requests**: up to 100 questions per run, generated in batches of 15.
+
 ## Adding Questions
 Click **Questions** on the sidebar, then click **+ Add Question**. Enter the question details. You can use standard LaTeX syntax wrapped in `$$` for block math or `\\(` `\\)` for inline math.
 

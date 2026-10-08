@@ -401,6 +401,13 @@ body.public-body {
     font-weight: 700;
 }
 
+.answer-explanation {
+    margin-top: 0.6rem;
+    font-size: clamp(1rem, 1.5vw, 1.2rem);
+    color: var(--text-secondary);
+    line-height: 1.5;
+}
+
 .answered-callout {
     margin-bottom: var(--spacing-lg);
     font-size: 1.15rem;

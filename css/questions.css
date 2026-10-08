@@ -418,6 +418,7 @@ input[type="checkbox"] {
 
 .result-option span:hover { border-color: var(--border-strong); }
 .result-option input:focus-visible + span { box-shadow: var(--focus-ring); }
+.result-option input:checked + span { background: var(--color-accent-soft); border-color: var(--color-accent); color: var(--text-primary); }
 .result-option input[value="correct"]:checked + span { background: var(--color-success-soft); border-color: var(--color-success); color: var(--color-success); }
 .result-option input[value="partial"]:checked + span { background: var(--color-warning-soft); border-color: var(--color-warning); color: var(--color-warning); }
 .result-option input[value="wrong"]:checked + span { background: var(--color-danger-soft); border-color: var(--color-danger); color: var(--color-danger); }

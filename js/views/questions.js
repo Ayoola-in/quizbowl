@@ -29,6 +29,9 @@
                             <p>Browse, filter and open questions to score them.</p>
                         </div>
                         <div class="page-actions">
+                            <button class="btn btn-secondary" onclick="window.QuizBowl.Router.navigate('generate')" title="Create questions from documents with AI">
+                                ${UI.icon('sparkles')} Generate with AI
+                            </button>
                             <button class="btn btn-primary" onclick="window.QuizBowl.Router.navigate('add-question')" title="Add question (Alt+N)">
                                 ${UI.icon('plus')} Add Question
                             </button>

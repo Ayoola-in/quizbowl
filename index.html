@@ -39,6 +39,7 @@
     <link rel="stylesheet" href="css/dashboard.css">
     <link rel="stylesheet" href="css/questions.css">
     <link rel="stylesheet" href="css/views.css">
+    <link rel="stylesheet" href="css/generate.css">
 
     <!-- MathJax for rendering Mathematical Expressions -->
     <script>
@@ -71,6 +72,7 @@
                 <div class="nav-label">Competition</div>
                 <a href="#dashboard" class="nav-item active" data-route="dashboard"><span data-icon="dashboard"></span>Dashboard</a>
                 <a href="#questions" class="nav-item" data-route="questions"><span data-icon="questions"></span>Questions</a>
+                <a href="#generate" class="nav-item" data-route="generate"><span data-icon="sparkles"></span>AI Generator</a>
                 <a href="#teams" class="nav-item" data-route="teams"><span data-icon="teams"></span>Teams</a>
                 <a href="#history" class="nav-item" data-route="history"><span data-icon="history"></span>History</a>
                 <div class="nav-label" style="margin-top: var(--spacing-md);">Configuration</div>
@@ -144,6 +146,11 @@
     <script src="js/components/toast.js"></script>
     <script src="js/components/modal.js"></script>
 
+    <!-- AI question generator -->
+    <script src="js/ai/ai-providers.js"></script>
+    <script src="js/ai/doc-extract.js"></script>
+    <script src="js/ai/question-generator.js"></script>
+
     <!-- Views -->
     <script src="js/views/dashboard.js"></script>
     <script src="js/views/questions.js"></script>
@@ -153,6 +160,7 @@
     <script src="js/views/history.js"></script>
     <script src="js/views/settings.js"></script>
     <script src="js/views/quizzes.js"></script>
+    <script src="js/views/generate.js"></script>
 
     <!-- Router -->
     <script src="js/router.js"></script>

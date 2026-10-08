@@ -140,6 +140,7 @@
             <div id="qd-answer-section" class="answer-panel" hidden>
                 <h3>Correct answer</h3>
                 <div id="qd-correct-answer"></div>
+                <p id="qd-explanation" class="answer-explanation" hidden></p>
             </div>
 
             <div id="qd-scoring-controls" class="scoring-controls" hidden>
@@ -458,6 +459,9 @@
                     const answer = q.correctAnswer || q.expectedAnswer;
                     correctAnswerElem.innerHTML = answer ? `${answer} ${q.unit ? UI.escapeHtml(q.unit) : ''}` : 'Not provided';
                 }
+                const explanationElem = document.getElementById('qd-explanation');
+                explanationElem.innerHTML = q.explanation || '';
+                explanationElem.hidden = !q.explanation;
 
                 setAnswerVisible(false);
                 setBlurred(false);

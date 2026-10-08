@@ -11,7 +11,8 @@
         'teams': 'Teams',
         'history': 'History',
         'settings': 'Settings',
-        'quizzes': 'Quizzes'
+        'quizzes': 'Quizzes',
+        'generate': 'AI Generator'
     };
 
     window.QuizBowl.Router = {
@@ -24,6 +25,7 @@
             'history': () => window.QuizBowl.Views.History.render(document.getElementById('view-container')),
             'settings': () => window.QuizBowl.Views.Settings.render(document.getElementById('view-container')),
             'quizzes': () => window.QuizBowl.Views.Quizzes.render(document.getElementById('view-container')),
+            'generate': () => window.QuizBowl.Views.Generate.render(document.getElementById('view-container')),
         },
 
         init: function() {

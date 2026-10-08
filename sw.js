@@ -3,7 +3,7 @@
  * Service worker: precaches the app shell so the installed app opens offline.
  * Bump CACHE_VERSION whenever the file list below changes.
  */
-const CACHE_VERSION = 'quizr-v3';
+const CACHE_VERSION = 'quizr-v4';
 const RUNTIME_CACHE = 'quizbowl-runtime-v1';
 
 const APP_SHELL = [
@@ -23,11 +23,15 @@ const APP_SHELL = [
     './css/questions.css',
     './css/views.css',
     './css/public.css',
+    './css/generate.css',
     './js/app.js',
     './js/pwa.js',
     './js/router.js',
     './js/components/modal.js',
     './js/components/toast.js',
+    './js/ai/ai-providers.js',
+    './js/ai/doc-extract.js',
+    './js/ai/question-generator.js',
     './js/data/storage.js',
     './js/data/questions-db.js',
     './js/data/teams-db.js',
@@ -47,11 +51,12 @@ const APP_SHELL = [
     './js/views/teams.js',
     './js/views/history.js',
     './js/views/settings.js',
-    './js/views/quizzes.js'
+    './js/views/quizzes.js',
+    './js/views/generate.js'
 ];
 
-// Third-party files (fonts, MathJax, confetti) cached the first time they load online
-const CDN_HOSTS = ['fonts.googleapis.com', 'fonts.gstatic.com', 'cdn.jsdelivr.net'];
+// Third-party files (fonts, MathJax, confetti, document readers) cached the first time they load online
+const CDN_HOSTS = ['fonts.googleapis.com', 'fonts.gstatic.com', 'cdn.jsdelivr.net', 'cdnjs.cloudflare.com'];
 
 self.addEventListener('install', (event) => {
     event.waitUntil(
