@@ -3,6 +3,7 @@
  * Hosting quizzes that people take on their own:
  *  - #host              hosted quizzes, and a box to enter a quiz code
  *  - #host-new          choose the quiz, questions, order and timer, then launch
+ *  - #host-edit/ID      change a hosted quiz's title and settings (and its questions until someone starts)
  *  - #host-session/ID   the code and share link, rules and everyone's scores
  *  - #host-attempt/ID   one person's answers, with marking for written answers
  *
@@ -232,8 +233,15 @@
         times: null,
         totalMinutes: 10,
         totalTouched: false,
-        launching: false
+        launching: false,
+        // Editing a hosted quiz: { session, started, running, keep (keep its questions), settings }
+        edit: null
     };
+
+    // The setup page's choices: the host's remembered preferences, or the quiz being edited
+    const cfg = () => S.edit ? S.edit.settings : getPrefs();
+    const setCfg = patch => { if (S.edit) Object.assign(S.edit.settings, patch); else savePrefs(patch); };
+    const keepingQuestions = () => !!S.edit && (S.edit.started || S.edit.keep);
 
     function quizQuestions(quizId) {
         return (Storage().getForQuiz(quizId, 'questions', []) || [])
@@ -244,6 +252,7 @@
     const categoryOf = q => (q.category || '').trim() || UNCATEGORISED;
 
     function selected() {
+        if (keepingQuestions()) return S.edit.session.questions || [];
         const all = quizQuestions(S.quizId);
         if (S.mode === 'types') return all.filter(q => S.types.has(q.type));
         if (S.mode === 'categories') return all.filter(q => S.cats.has(categoryOf(q)));
@@ -284,14 +293,79 @@
     }
 
     window.QuizBowl.Views.HostNew = {
-        render: function(container) {
+        // New hosted quiz, or (with an id) edit an existing one
+        render: async function(container, editId) {
             stopRefresh();
-            ++renderToken;
+            const token = ++renderToken;
+            const QuizzesDB = window.QuizBowl.Data.QuizzesDB;
+            S.launching = false;
+            this.container = container;
+            if (!editId) {
+                if (S.edit) { S.edit = null; S.quizId = null; }   // coming from an edit: start a fresh setup
+                if (!S.quizId || !QuizzesDB.getById(S.quizId)) this.resetFor(QuizzesDB.getActiveId());
+                return this.draw(container);
+            }
+
+            loading(container, 'Loading the hosted quiz…');
+            let session, attempts;
+            try {
+                session = await Hosting().getSession(editId);
+                attempts = session ? await Hosting().listAttempts(session.id) : [];
+            } catch (err) {
+                if (token !== renderToken) return;
+                return failed(container, err, () => this.render(container, editId));
+            }
+            if (token !== renderToken) return;
+            if (!session) {
+                container.innerHTML = `<div class="card">${UI().emptyState('inbox', 'Hosted quiz not found', 'It may have been deleted.',
+                    `<a href="#host" class="btn btn-primary">Hosted quizzes</a>`)}</div>`;
+                return;
+            }
+            const st = session.settings || {};
+            S.edit = {
+                session,
+                started: attempts.length > 0,
+                running: attempts.filter(a => a.status !== 'submitted').length,
+                keep: true,
+                settings: { ...DEFAULT_SETTINGS, ...st, times: { ...DEFAULT_TIMES, ...(st.times || {}) } }
+            };
+            // If they choose questions again, start from the quiz it came from with its questions ticked
+            this.resetFor(session.quizId && QuizzesDB.getById(session.quizId) ? session.quizId : QuizzesDB.getActiveId(), true);
+            S.mode = 'pick';
+            S.picked = new Set((session.questions || []).map(q => q.id));
+            S.title = session.title;
+            S.times = { ...S.edit.settings.times };
+            S.totalMinutes = Math.max(1, Math.round((Number(st.totalSeconds) || 600) / 60));
+            S.totalTouched = true;
+            this.draw(container);
+        },
+
+        // Questions part of the edit page: keep them, choose again, or locked once people have started
+        editQuestionsHtml: function() {
+            const s = S.edit.session;
+            const n = (s.questions || []).length;
+            if (S.edit.started) {
+                return `<div class="callout callout-info host-callout">${UI().icon('lock')}<div><strong>Questions are locked (${n} question${n === 1 ? '' : 's'})</strong>People have already started this quiz, so its questions can't change and every score stays out of the same questions. To use different questions, host it again as a new quiz.</div></div>`;
+            }
+            return `
+                <div class="choice-cards host-keep" role="radiogroup" aria-label="Questions">
+                    <label class="choice-card">
+                        <input type="radio" name="hn-keep" value="keep" ${S.edit.keep ? 'checked' : ''}>
+                        <span><strong>Keep the current questions</strong><small>${n} question${n === 1 ? '' : 's'}, as launched</small></span>
+                    </label>
+                    <label class="choice-card">
+                        <input type="radio" name="hn-keep" value="choose" ${S.edit.keep ? '' : 'checked'}>
+                        <span><strong>Choose questions again</strong><small>Pick from a quiz, including any changes made to its questions since launch</small></span>
+                    </label>
+                </div>`;
+        },
+
+        draw: function(container) {
             const QuizzesDB = window.QuizBowl.Data.QuizzesDB;
             const quizzes = QuizzesDB.getAll();
-            if (!S.quizId || !QuizzesDB.getById(S.quizId)) this.resetFor(QuizzesDB.getActiveId());
-            const prefs = getPrefs();
-            S.launching = false;
+            const prefs = cfg();
+            const editing = !!S.edit;
+            const choosing = !keepingQuestions();
 
             const toggle = (key, label, hint) => `
                 <label class="gen-toggle">
@@ -301,36 +375,43 @@
 
             container.innerHTML = `
                 <div class="generate-view host-new-view">
-                    <a href="#host" class="back-link">${UI().icon('back')} Hosted quizzes</a>
+                    ${editing
+                        ? `<a href="#host-session/${encodeURIComponent(S.edit.session.id)}" class="back-link">${UI().icon('back')} ${esc(S.edit.session.title)}</a>`
+                        : `<a href="#host" class="back-link">${UI().icon('back')} Hosted quizzes</a>`}
                     <div class="page-header">
                         <div>
-                            <h1>Host a new quiz</h1>
-                            <p>Choose the questions and the rules. You'll get a code and a link for taking the quiz.</p>
+                            <h1>${editing ? 'Edit hosted quiz' : 'Host a new quiz'}</h1>
+                            <p>${editing
+                                ? `Code <strong>${esc(S.edit.session.code)}</strong> stays the same. People already taking the quiz keep the timer and order they started with.`
+                                : 'Choose the questions and the rules. You\'ll get a code and a link for taking the quiz.'}</p>
                         </div>
                     </div>
                     <div class="gen-layout">
                         <div class="gen-main">
                             <section class="card gen-step">
                                 <div class="card-header">
-                                    <div><h2><span class="gen-step-num">1</span> Quiz and questions</h2><p>Everything, whole types or categories, or hand-picked questions</p></div>
+                                    <div><h2><span class="gen-step-num">1</span> ${editing ? 'Title and questions' : 'Quiz and questions'}</h2><p>${editing ? 'What people see, and which questions they answer' : 'Everything, whole types or categories, or hand-picked questions'}</p></div>
                                 </div>
                                 <div class="form-row">
+                                    ${choosing ? `
                                     <div class="form-group">
                                         <label for="hn-quiz">Quiz</label>
                                         <select id="hn-quiz" class="form-control">
                                             ${quizzes.map(q => `<option value="${esc(q.id)}" ${q.id === S.quizId ? 'selected' : ''}>${esc(q.name)}</option>`).join('')}
                                         </select>
-                                    </div>
+                                    </div>` : ''}
                                     <div class="form-group">
                                         <label for="hn-title">Title people will see</label>
                                         <input type="text" id="hn-title" class="form-control" maxlength="120" value="${esc(S.title)}">
                                     </div>
                                 </div>
+                                ${editing ? this.editQuestionsHtml() : ''}
+                                ${choosing ? `
                                 <div class="segmented export-mode" id="hn-mode" role="tablist" aria-label="Which questions">
                                     ${[['all', 'All questions'], ['types', 'By type'], ['categories', 'By category'], ['pick', 'Pick questions']].map(([v, l]) =>
                                         `<button type="button" role="tab" data-value="${v}" class="${S.mode === v ? 'active' : ''}" aria-selected="${S.mode === v}">${l}</button>`).join('')}
                                 </div>
-                                <div id="hn-mode-body"></div>
+                                <div id="hn-mode-body"></div>` : ''}
                             </section>
 
                             <section class="card gen-step">
@@ -383,7 +464,8 @@
             this.bind(container);
         },
 
-        resetFor: function(quizId) {
+        // Start choosing from a quiz; `questionsOnly` keeps the title and times (when editing)
+        resetFor: function(quizId, questionsOnly) {
             const quiz = window.QuizBowl.Data.QuizzesDB.getById(quizId);
             S.quizId = quizId;
             S.mode = 'all';
@@ -391,6 +473,7 @@
             S.cats = new Set(quizQuestions(quizId).map(categoryOf));
             S.picked = new Set();
             S.search = '';
+            if (questionsOnly) return;
             S.title = quiz ? quiz.name : 'Quiz';
             S.times = defaultTimes(quizId);
             S.totalTouched = false;
@@ -398,6 +481,7 @@
 
         renderModeBody: function() {
             const body = $('hn-mode-body');
+            if (!body) return;
             const all = quizQuestions(S.quizId);
             if (!all.length) {
                 body.innerHTML = `<p class="export-note">${UI().icon('info')} <span>This quiz has no questions yet. <a href="#generate">Generate some</a> or choose another quiz.</span></p>`;
@@ -478,7 +562,7 @@
 
         renderTimerBody: function() {
             const body = $('hn-timer-body');
-            const prefs = getPrefs();
+            const prefs = cfg();
             const questions = selected();
             const typesUsed = TYPES.filter(t => questions.some(q => q.type === t));
             if (prefs.timerMode === 'total') {
@@ -509,7 +593,7 @@
         },
 
         settings: function() {
-            const prefs = getPrefs();
+            const prefs = cfg();
             return {
                 timerMode: prefs.timerMode === 'total' ? 'total' : 'question',
                 times: { ...S.times },
@@ -532,10 +616,29 @@
             const byType = TYPES.map(t => [t, questions.filter(q => q.type === t).length]).filter(([, n]) => n);
             const perQuestion = questions.reduce((sum, q) => sum + Math.max(5, Number(st.times[q.type]) || 30), 0);
             const totalOk = st.timerMode !== 'total' || st.totalSeconds >= 60;
-            const blocker = mode === 'signin' ? 'Sign in to your Quizr account to host a quiz.'
-                : mode === 'loading' ? 'Checking your account…'
+            const editing = !!S.edit;
+            const blocker = !editing && mode === 'signin' ? 'Sign in to your Quizr account to host a quiz.'
+                : !editing && mode === 'loading' ? 'Checking your account…'
                 : !questions.length ? 'Choose at least one question.'
                 : !totalOk ? 'Set a total time of at least 1 minute.' : '';
+            if (editing) {
+                const running = S.edit.running;
+                el.innerHTML = `
+                    <h2 class="gen-summary-title">${UI().icon('pencil')} Your changes</h2>
+                    <dl class="gen-summary-list">
+                        <div><dt>Questions</dt><dd>${questions.length}${keepingQuestions() ? '' : ' (new choice)'}</dd></div>
+                        <div><dt>Total marks</dt><dd>${marks}</dd></div>
+                        <div><dt>Timer</dt><dd>${st.timerMode === 'total' ? 'Total time' : 'Per question'}</dd></div>
+                        <div><dt>${st.timerMode === 'total' ? 'Time allowed' : 'Longest possible'}</dt><dd>${formatDuration(st.timerMode === 'total' ? st.totalSeconds : perQuestion)}</dd></div>
+                        <div><dt>Order</dt><dd>${[st.groupByCategory ? 'By category' : '', st.shuffleQuestions ? 'Shuffled' : ''].filter(Boolean).join(', ') || 'As listed'}</dd></div>
+                        <div><dt>After submitting</dt><dd>${st.showReview ? 'Score and answers' : 'Score only'}</dd></div>
+                        <div><dt>Attempts</dt><dd>${st.allowRetake ? 'More than one' : 'One per person'}</dd></div>
+                    </dl>
+                    <button type="button" class="btn btn-primary btn-lg btn-block" id="hn-save" ${blocker || S.launching ? 'disabled' : ''}>${S.launching ? `${UI().icon('loader', 'spin')} Saving…` : `${UI().icon('check')} Save changes`}</button>
+                    <a href="#host-session/${encodeURIComponent(S.edit.session.id)}" class="btn btn-ghost btn-block host-cancel">Cancel</a>
+                    <p class="form-hint gen-blocker">${blocker || `${running ? `${running === 1 ? 'One person is' : `${running} people are`} taking this quiz right now and will keep the timer and order they started with. ` : ''}Timer and order changes apply to attempts that start after you save. Showing answers and retakes change for everyone straight away.`}</p>`;
+                return;
+            }
             el.innerHTML = `
                 <h2 class="gen-summary-title">${UI().icon('play')} Your hosted quiz</h2>
                 <dl class="gen-summary-list">
@@ -586,6 +689,35 @@
             }
         },
 
+        // Save an edited hosted quiz
+        save: async function() {
+            if (S.launching || !S.edit) return;
+            const token = renderToken;
+            const title = ($('hn-title').value || '').trim();
+            if (!title) { Toast().show('Please enter a title.', 'danger'); $('hn-title').focus(); return; }
+            S.launching = true;
+            this.renderSummary();
+            try {
+                const patch = { title, settings: this.settings() };
+                if (!keepingQuestions()) {
+                    const quiz = window.QuizBowl.Data.QuizzesDB.getById(S.quizId);
+                    patch.questions = selected().map(snapshot);
+                    patch.quizName = quiz ? quiz.name : '';
+                }
+                const id = S.edit.session.id;
+                await Hosting().updateSession(id, patch);
+                S.edit = null;
+                S.quizId = null;
+                Toast().show('Changes saved.', 'success');
+                window.QuizBowl.Router.navigate('host-session/' + encodeURIComponent(id));
+            } catch (err) {
+                Toast().show(err.message, 'danger');
+            } finally {
+                S.launching = false;
+                if (token === renderToken) this.renderSummary();
+            }
+        },
+
         bind: function(container) {
             const view = container.querySelector('.host-new-view');
             const self = this;
@@ -612,12 +744,18 @@
                     return;
                 }
                 if (e.target.closest('#hn-launch')) self.launch();
+                if (e.target.closest('#hn-save')) self.save();
             });
 
             view.addEventListener('change', e => {
                 const t = e.target;
+                if (t.name === 'hn-keep') {
+                    S.edit.keep = t.value === 'keep';
+                    S.title = $('hn-title').value;
+                    return self.draw(container);
+                }
                 if (t.id === 'hn-quiz') {
-                    self.resetFor(t.value);
+                    self.resetFor(t.value, !!S.edit);
                     $('hn-title').value = S.title;
                     self.renderModeBody();
                     self.refresh();
@@ -641,11 +779,11 @@
                     return self.refresh();
                 }
                 if (t.hasAttribute('data-pref')) {
-                    savePrefs({ [t.getAttribute('data-pref')]: t.checked });
+                    setCfg({ [t.getAttribute('data-pref')]: t.checked });
                     return self.renderSummary();
                 }
                 if (t.name === 'hn-timer') {
-                    savePrefs({ timerMode: t.value });
+                    setCfg({ timerMode: t.value });
                     return self.refresh();
                 }
                 if (t.hasAttribute('data-time')) {
@@ -799,6 +937,7 @@
                             <p>${session.quizName && session.quizName !== session.title ? `From ${esc(session.quizName)} · ` : ''}Hosted ${formatDate(session.createdAt)}${cloud ? '' : ' · on this device only'}</p>
                         </div>
                         <div class="page-actions">
+                            <a href="#host-edit/${encodeURIComponent(session.id)}" class="btn btn-secondary">${UI().icon('pencil')} Edit</a>
                             <button type="button" class="btn btn-secondary" id="hs-toggle">${UI().icon(session.open ? 'lock' : 'play')} ${session.open ? 'Close quiz' : 'Reopen quiz'}</button>
                             <button type="button" class="btn btn-danger-ghost" id="hs-delete">${UI().icon('trash')} Delete</button>
                         </div>
@@ -1049,7 +1188,7 @@
             setTimeout(() => {
                 const route = window.QuizBowl.State.currentRoute;
                 if (route === 'host') window.QuizBowl.Views.Host.render(document.getElementById('view-container'));
-                else if (route === 'host-new' && $('hn-summary')) window.QuizBowl.Views.HostNew.renderSummary();
+                else if ((route === 'host-new' || route === 'host-edit') && $('hn-summary')) window.QuizBowl.Views.HostNew.renderSummary();
             }, 0);
         });
     }

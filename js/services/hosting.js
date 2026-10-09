@@ -39,7 +39,8 @@
     // Same shape as the cloud's attempt state
     function localState(attempt) {
         const L = Local();
-        const s = L.getSession(attempt.sessionId);
+        const live = L.getSession(attempt.sessionId);
+        const s = L.forAttempt(live, attempt);   // the timer and order this attempt started with
         const map = L.questionMap(s);
         const running = attempt.status === 'in_progress';
         const perQuestion = s.settings.timerMode !== 'total';
@@ -104,6 +105,12 @@
             if (mode === 'cloud') return CloudHost().createSession(data);
             if (mode === 'local') return localSession(Local().createSession(data));
             throw new Error('Please sign in to host a quiz.');
+        },
+
+        // Change the title, settings, or (until someone starts) the questions of a hosted quiz
+        async updateSession(id, patch) {
+            if (isCloudId(id)) return CloudHost().updateSession(id, patch);
+            return localSession(Local().updateSession(id, patch));
         },
 
         async setOpen(id, open) {

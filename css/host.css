@@ -363,3 +363,7 @@ body.exam-mode .view-container > .take-view { max-width: 1180px; }
 .host-away-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.5rem; }
 .host-away-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.75rem; padding: 0.6rem 0.8rem; border: 1px solid var(--border-color); border-radius: var(--border-radius); font-size: 0.9rem; }
 .host-away-list .icon { width: 16px; height: 16px; color: var(--color-warning); flex-shrink: 0; }
+
+/* ---------- Editing a hosted quiz ---------- */
+.host-keep { margin-bottom: var(--spacing-md); }
+.host-cancel { margin-top: var(--spacing-sm); }

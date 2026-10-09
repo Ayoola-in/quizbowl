@@ -14,7 +14,7 @@
  * Session: { id, code, title, quizId, quizName, createdAt, open, settings, questions: [snapshot] }
  *   settings: { timerMode: 'question'|'total', times: { mcq, true_false, theory, calculation } (seconds),
  *               totalSeconds, groupByCategory, shuffleQuestions, shuffleOptions, showReview, allowRetake }
- * Attempt: { id, sessionId, name, userId, email, startedAt, status: 'in_progress'|'submitted',
+ * Attempt: { id, sessionId, name, userId, email, startedAt, status: 'in_progress'|'submitted', settings (rules it started with),
  *            order: [questionId], optionOrder: { questionId: [letter] }, answers: { questionId: value },
  *            current, questionDeadline (per-question mode), deadline (total mode), view,
  *            submittedAt, endedBy: 'finished'|'ended'|'timeout', results, score, maxScore, pending,
@@ -169,6 +169,25 @@
         return map;
     }
 
+    // Editing a hosted quiz doesn't change running attempts: they keep the timer and order they started with
+    const ATTEMPT_RULES = ['timerMode', 'times', 'totalSeconds', 'groupByCategory', 'shuffleQuestions', 'shuffleOptions'];
+    function forAttempt(session, attempt) {
+        if (!session || !attempt || !attempt.settings) return session;
+        const rules = {};
+        ATTEMPT_RULES.forEach(k => { if (attempt.settings[k] !== undefined) rules[k] = attempt.settings[k]; });
+        return { ...session, settings: { ...session.settings, ...rules } };
+    }
+
+    function cleanSettings(settings) {
+        const merged = { ...DEFAULT_SETTINGS, ...settings, times: { ...DEFAULT_TIMES, ...(settings && settings.times) } };
+        merged.timerMode = merged.timerMode === 'total' ? 'total' : 'question';
+        Object.keys(DEFAULT_TIMES).forEach(t => {
+            const v = Math.round(Number(merged.times[t]));
+            merged.times[t] = Math.min(3600, Math.max(5, Number.isFinite(v) ? v : DEFAULT_TIMES[t]));
+        });
+        return merged;
+    }
+
     function score(session, attempt) {
         const map = questionMap(session);
         const results = {};
@@ -208,7 +227,7 @@
 
         createSession({ title, quizId, quizName, questions, settings }) {
             if (!questions || !questions.length) throw new Error('Choose at least one question.');
-            const merged = { ...DEFAULT_SETTINGS, ...settings, times: { ...DEFAULT_TIMES, ...(settings && settings.times) } };
+            const merged = cleanSettings(settings);
             if (merged.timerMode === 'total' && !(merged.totalSeconds >= 30)) throw new Error('Give the quiz at least 30 seconds in total.');
             const sessions = readSessions();
             const session = {
@@ -224,6 +243,36 @@
             sessions.push(session);
             writeSessions(sessions);
             return session;
+        },
+
+        /**
+         * Change a hosted quiz: title and settings at any time (running attempts keep the
+         * rules they started with); questions only until someone has started.
+         */
+        updateSession(id, { title, quizName, settings, questions } = {}) {
+            const sessions = readSessions();
+            const s = sessions.find(x => x.id === id);
+            if (!s) throw new Error('Hosted quiz not found.');
+            if (title !== undefined) {
+                const clean = String(title || '').trim().slice(0, 120);
+                if (!clean) throw new Error('Please enter a title.');
+                s.title = clean;
+            }
+            if (settings !== undefined) {
+                const merged = cleanSettings(settings);
+                if (merged.timerMode === 'total' && !(merged.totalSeconds >= 30)) throw new Error('Give the quiz at least 30 seconds in total.');
+                s.settings = merged;
+            }
+            if (questions !== undefined) {
+                if (!questions || !questions.length) throw new Error('Choose at least one question.');
+                if (readAttempts().some(a => a.sessionId === id)) {
+                    throw new Error('People have already started this quiz, so its questions can\'t change. Host it again as a new quiz to use different questions.');
+                }
+                s.questions = questions.map(snapshot);
+                if (quizName !== undefined) s.quizName = quizName || '';
+            }
+            writeSessions(sessions);
+            return s;
         },
 
         setOpen(id, open) {
@@ -252,6 +301,7 @@
 
         questionTime,
         questionMap,
+        forAttempt,
 
         // ---------- attempts ----------
         listAttempts(sessionId) {
@@ -291,6 +341,7 @@
                 name: cleanName, userId, email: email || '',
                 startedAt: now,
                 status: 'in_progress',
+                settings: { ...session.settings },
                 order, optionOrder,
                 answers: {},
                 current: 0,
@@ -317,7 +368,7 @@
         // Answers can only change while the question is open (any question in total-time mode)
         canAnswer(session, attempt, index) {
             if (attempt.status !== 'in_progress') return false;
-            return session.settings.timerMode === 'total' ? true : index === attempt.current;
+            return forAttempt(session, attempt).settings.timerMode === 'total' ? true : index === attempt.current;
         },
 
         saveAnswer(attemptId, questionId, value) {
@@ -342,8 +393,8 @@
          */
         nextQuestion(attemptId) {
             const attempt = this.getAttempt(attemptId);
-            const session = attempt && this.getSession(attempt.sessionId);
-            if (!attempt || !session || attempt.status !== 'in_progress' || session.settings.timerMode !== 'question') return attempt;
+            const session = attempt && forAttempt(this.getSession(attempt.sessionId), attempt);
+            if (!attempt || !session || attempt.status !== 'in_progress' || session.settings.timerMode === 'total') return attempt;
             if (attempt.current >= attempt.order.length - 1) return this.submit(attemptId, 'finished');
             const map = questionMap(session);
             return this._update(attemptId, a => {
@@ -362,7 +413,7 @@
         checkTime(attemptId, now = Date.now()) {
             const attempt = this.getAttempt(attemptId);
             if (!attempt || attempt.status !== 'in_progress') return { attempt, changed: false };
-            const session = this.getSession(attempt.sessionId);
+            const session = forAttempt(this.getSession(attempt.sessionId), attempt);
             if (!session) return { attempt, changed: false };
             if (session.settings.timerMode === 'total') {
                 if (now >= attempt.deadline) return { attempt: this.submit(attemptId, 'timeout', attempt.deadline), changed: 'timeout' };

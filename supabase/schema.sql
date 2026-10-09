@@ -214,6 +214,9 @@ create table if not exists public.hosted_attempts (
     pending           integer not null default 0
 );
 
+-- The timer and order rules an attempt started with, so editing the quiz doesn't change running attempts
+alter table public.hosted_attempts add column if not exists settings jsonb;
+
 create index if not exists hosted_attempts_quiz_idx on public.hosted_attempts (quiz_id);
 create index if not exists hosted_attempts_user_idx on public.hosted_attempts (user_id, quiz_id);
 -- At most one attempt in progress per person per quiz (guards against double starts)
@@ -312,13 +315,20 @@ returns trigger language plpgsql security definer set search_path = public as $$
 declare
     v_questions jsonb;
 begin
+    new.title := btrim(new.title);
+    new.settings := quizr_private.clean_settings(new.settings);
     if tg_op = 'UPDATE' then
-        -- Only the title and open/closed state change after launch
-        new.settings := old.settings;
-        new.questions := old.questions;
         new.owner_id := old.owner_id;
         new.code := old.code;
-        return new;
+        new.created_at := old.created_at;
+        -- Settings can change at any time (running attempts keep the rules they started with);
+        -- questions only until someone has started, so every score is out of the same questions
+        if new.questions is not distinct from old.questions then
+            return new;
+        end if;
+        if exists (select 1 from public.hosted_attempts where quiz_id = old.id) then
+            raise exception 'People have already started this quiz, so its questions can''t change. Host it again as a new quiz to use different questions.';
+        end if;
     end if;
     if jsonb_typeof(new.questions) <> 'array' or jsonb_array_length(new.questions) = 0 then
         raise exception 'Choose at least one question.';
@@ -335,12 +345,12 @@ begin
         raise exception 'Two questions have the same ID.';
     end if;
     new.questions := v_questions;
-    new.settings := quizr_private.clean_settings(new.settings);
     new.question_count := jsonb_array_length(v_questions);
     new.total_marks := (select coalesce(sum((e->>'marks')::numeric), 0) from jsonb_array_elements(v_questions) e);
-    new.title := btrim(new.title);
-    new.created_at := now();
-    new.is_open := true;
+    if tg_op = 'INSERT' then
+        new.created_at := now();
+        new.is_open := true;
+    end if;
     return new;
 end;
 $$;
@@ -442,6 +452,14 @@ returns integer language sql immutable as $$
     select greatest(5, coalesce((p_settings->'times'->>p_type)::int, 30))
 $$;
 
+-- The quiz's settings, with the timer and order rules this attempt started with
+create or replace function quizr_private.settings_for(p_attempt public.hosted_attempts, p_quiz public.hosted_quizzes)
+returns jsonb language sql stable as $$
+    select p_quiz.settings || coalesce((
+        select jsonb_object_agg(key, value) from jsonb_each(coalesce(p_attempt.settings, '{}'::jsonb))
+        where key in ('timerMode', 'times', 'totalSeconds', 'groupByCategory', 'shuffleQuestions', 'shuffleOptions')), '{}'::jsonb)
+$$;
+
 -- Mark every answer again, keeping marks the host set by hand
 create or replace function quizr_private.rescore(p_attempt uuid)
 returns void language plpgsql as $$
@@ -502,11 +520,13 @@ declare
     v_q public.hosted_quizzes;
     v_n int;
     v_changed boolean := false;
+    v_settings jsonb;
 begin
     select * into v_a from public.hosted_attempts where id = p_attempt for update;
     if not found or v_a.status <> 'in_progress' then return; end if;
     select * into v_q from public.hosted_quizzes where id = v_a.quiz_id;
-    if v_q.settings->>'timerMode' = 'total' then
+    v_settings := quizr_private.settings_for(v_a, v_q);
+    if v_settings->>'timerMode' = 'total' then
         if p_now >= v_a.deadline then
             perform quizr_private.finish(p_attempt, 'timeout', v_a.deadline);
         end if;
@@ -519,7 +539,7 @@ begin
             return;
         end if;
         v_a.current_index := v_a.current_index + 1;
-        v_a.question_deadline := v_a.question_deadline + make_interval(secs => quizr_private.question_time(v_q.settings,
+        v_a.question_deadline := v_a.question_deadline + make_interval(secs => quizr_private.question_time(v_settings,
             quizr_private.question(v_q, v_a.question_order->>v_a.current_index)->>'type'));
         v_changed := true;
     end loop;
@@ -560,7 +580,7 @@ declare
 begin
     select * into v_a from public.hosted_attempts where id = p_attempt;
     select * into v_q from public.hosted_quizzes where id = v_a.quiz_id;
-    v_total_mode := v_q.settings->>'timerMode' = 'total';
+    v_total_mode := quizr_private.settings_for(v_a, v_q)->>'timerMode' = 'total';
     v_running := v_a.status = 'in_progress';
     for v_qid in select x from jsonb_array_elements_text(v_a.question_order) with ordinality as t(x, n) order by n loop
         -- Per question: questions that haven't opened yet aren't sent
@@ -586,7 +606,7 @@ begin
             'endedBy', v_a.ended_by,
             'results', case when v_running then null else v_a.results end,
             'score', v_a.score, 'maxScore', v_a.max_score, 'pending', v_a.pending),
-        'session', quizr_private.public_session(v_q),
+        'session', jsonb_set(quizr_private.public_session(v_q), '{settings}', quizr_private.settings_for(v_a, v_q)),
         'questions', v_visible,
         'review', v_review,
         'serverNow', quizr_private.ms(clock_timestamp()));
@@ -678,8 +698,8 @@ begin
 
     v_first := quizr_private.question(v_q, v_order->>0);
     begin
-        insert into public.hosted_attempts (quiz_id, user_id, name, email, question_order, option_order, question_deadline, deadline)
-        values (v_q.id, v_uid, v_name, coalesce((select email from auth.users where id = v_uid), ''), v_order, v_options,
+        insert into public.hosted_attempts (quiz_id, user_id, name, email, settings, question_order, option_order, question_deadline, deadline)
+        values (v_q.id, v_uid, v_name, coalesce((select email from auth.users where id = v_uid), ''), v_q.settings, v_order, v_options,
                 case when v_q.settings->>'timerMode' = 'total' then null
                      else now() + make_interval(secs => quizr_private.question_time(v_q.settings, v_first->>'type')) end,
                 case when v_q.settings->>'timerMode' = 'total'
@@ -717,7 +737,7 @@ begin
     select * into v_q from public.hosted_quizzes where id = v_a.quiz_id;
     select n - 1 into v_index from jsonb_array_elements_text(v_a.question_order) with ordinality as t(x, n) where x = p_question;
     if v_a.status = 'in_progress' and v_index is not null
-       and (v_q.settings->>'timerMode' = 'total' or v_index = v_a.current_index) then
+       and (quizr_private.settings_for(v_a, v_q)->>'timerMode' = 'total' or v_index = v_a.current_index) then
         update public.hosted_attempts
            set answers = case when p_value is null or p_value = '' then answers - p_question
                               else answers || jsonb_build_object(p_question, left(p_value, 5000)) end
@@ -740,7 +760,7 @@ begin
     select * into v_q from public.hosted_quizzes where id = v_a.quiz_id;
     update public.hosted_attempts
        set view_index = greatest(0, least(coalesce(p_index, 0),
-           case when v_q.settings->>'timerMode' = 'total' then jsonb_array_length(question_order) - 1 else current_index end))
+           case when quizr_private.settings_for(v_a, v_q)->>'timerMode' = 'total' then jsonb_array_length(question_order) - 1 else current_index end))
      where id = p_attempt and status = 'in_progress';
 end;
 $$;
@@ -756,14 +776,14 @@ begin
     perform quizr_private.tick(p_attempt);
     select * into v_a from public.hosted_attempts where id = p_attempt for update;
     select * into v_q from public.hosted_quizzes where id = v_a.quiz_id;
-    if v_a.status = 'in_progress' and v_q.settings->>'timerMode' <> 'total' and v_a.current_index = p_from then
+    if v_a.status = 'in_progress' and quizr_private.settings_for(v_a, v_q)->>'timerMode' <> 'total' and v_a.current_index = p_from then
         if v_a.current_index >= jsonb_array_length(v_a.question_order) - 1 then
             perform quizr_private.finish(p_attempt, 'finished', now());
         else
             update public.hosted_attempts
                set current_index = current_index + 1,
                    view_index = current_index + 1,
-                   question_deadline = now() + make_interval(secs => quizr_private.question_time(v_q.settings,
+                   question_deadline = now() + make_interval(secs => quizr_private.question_time(quizr_private.settings_for(v_a, v_q),
                        quizr_private.question(v_q, question_order->>(current_index + 1))->>'type'))
              where id = p_attempt;
         end if;
@@ -875,7 +895,7 @@ revoke all on public.hosted_quizzes from anon, authenticated;
 revoke all on public.hosted_attempts from anon, authenticated;
 grant select, delete on public.hosted_quizzes to authenticated;
 grant insert (title, quiz_name, settings, questions) on public.hosted_quizzes to authenticated;
-grant update (title, is_open) on public.hosted_quizzes to authenticated;
+grant update (title, quiz_name, is_open, settings, questions) on public.hosted_quizzes to authenticated;
 grant select, delete on public.hosted_attempts to authenticated;
 
 drop policy if exists "Hosts read their hosted quizzes" on public.hosted_quizzes;

@@ -96,6 +96,8 @@ Besides running a live team quiz, you can host a quiz that people take on their 
 
 Each hosted quiz has a **Scores** page with the code and link, the rules, everyone's scores (ranked, with time taken and how the attempt ended, updated every 10 seconds) and **Download CSV**. You can also close a quiz so no new attempts start.
 
+**Edit** on that page changes a hosted quiz after launch, keeping its code: the title, question order and shuffling, the timer, showing answers, and retakes. People already taking the quiz keep the timer and order they started with; new attempts use the new rules. Showing answers and retakes change for everyone straight away. The questions themselves can be changed (kept, or chosen again from a quiz, including edits made since launch) until the first person starts; after that they're locked, so every score is out of the same questions.
+
 The quiz runs in full screen with the rest of the app locked. If someone leaves full screen (or reloads or closes the quiz page), it's recorded with the time: the scores page pops up a note while you have it open, shows who is out of full screen right now and how many times each person left, and each person's answers page lists every time with how long they were away. The CSV includes the count too.
 
 The timing and marking happen on the server: people taking the quiz never receive the correct answers before they submit, questions that haven't opened yet aren't sent, and the clock is the server's. Question text from the host is cleaned before it's shown, so it can't run code in anyone's browser.

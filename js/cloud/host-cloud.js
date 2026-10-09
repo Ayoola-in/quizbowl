@@ -133,6 +133,17 @@
             return null;
         },
 
+        async updateSession(id, { title, quizName, settings, questions } = {}) {
+            const client = await db();
+            const row = {};
+            if (title !== undefined) row.title = title;
+            if (settings !== undefined) row.settings = settings;
+            if (questions !== undefined) { row.questions = questions; row.quiz_name = quizName || ''; }
+            const { data, error } = await client.from('hosted_quizzes').update(row).eq('id', id).select('*').single();
+            if (error) throw friendly(error);
+            return sessionFromRow(data);
+        },
+
         async setOpen(id, open) {
             const client = await db();
             const { error } = await client.from('hosted_quizzes').update({ is_open: !!open }).eq('id', id);
