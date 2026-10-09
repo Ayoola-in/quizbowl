@@ -59,6 +59,21 @@
                 hash = hash.substring(1);
             }
 
+            // Exam mode: a quiz is running, so the rest of the app is off limits until it's finished
+            const examLock = window.QuizBowl.State.examLock;
+            if (examLock) {
+                if (hash !== examLock) {
+                    history.replaceState(null, '', '#' + examLock);
+                    if (window.QuizBowl.Components.Toast && Date.now() - (this.examToastAt || 0) > 4000) {
+                        this.examToastAt = Date.now();
+                        window.QuizBowl.Components.Toast.show('Finish or end the quiz before leaving it.', 'warning');
+                    }
+                    return;
+                }
+                // Already showing the running quiz: nothing to redraw
+                if (document.getElementById('take-root')) return;
+            }
+
             // Route matching
             const viewContainer = document.getElementById('view-container');
             const routeParts = hash.split('/');

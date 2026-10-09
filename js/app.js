@@ -14,7 +14,14 @@ window.QuizBowl = {
     State: {
         currentRoute: 'dashboard',
         isDisplayMode: false,
-        searchQuery: ''
+        searchQuery: '',
+        // Route of a quiz being taken in this tab: the rest of the app is locked until it ends (views/take.js)
+        examLock: (function() {
+            try {
+                const route = sessionStorage.getItem('quizr_exam');
+                return route && route === location.hash.replace(/^#\/?/, '') ? route : null;
+            } catch (e) { return null; }
+        })()
     }
 };
 

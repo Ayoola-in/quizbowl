@@ -54,6 +54,13 @@
 </head>
 
 <body>
+    <!-- A quiz was running in this tab: stay locked to it while the page loads (see js/views/take.js) -->
+    <script>
+        try {
+            var examRoute = sessionStorage.getItem('quizr_exam');
+            if (examRoute && examRoute === location.hash.replace(/^#\/?/, '')) document.body.classList.add('exam-mode');
+        } catch (e) {}
+    </script>
     <div id="app-container">
         <!-- Sidebar -->
         <aside class="sidebar" id="sidebar">

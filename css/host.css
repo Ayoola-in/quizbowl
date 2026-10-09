@@ -336,3 +336,24 @@ textarea.take-text { min-height: 120px; }
 .host-score-actions { display: flex; flex-wrap: wrap; gap: var(--spacing-sm); }
 .take-code-inline { font-family: var(--font-mono); letter-spacing: 0.12em; color: var(--text-primary); }
 .take-view.is-busy .take-q-footer .btn, .take-view.is-busy #take-end { opacity: 0.6; pointer-events: none; }
+
+/* ---------- Exam mode: only the running quiz is on screen ---------- */
+body.exam-mode .sidebar,
+body.exam-mode .sidebar-backdrop,
+body.exam-mode .top-header { display: none !important; }
+body.exam-mode .view-container { padding: var(--spacing-lg); }
+body.exam-mode .view-container > .take-view { max-width: 1180px; }
+.take-fs-gate {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;   /* above the quiz, below dialogs and toasts */
+    display: grid;
+    place-items: center;
+    padding: var(--spacing-md);
+    background: var(--bg-main);
+}
+.take-fs-gate[hidden] { display: none; }
+.take-fs-gate .take-card { margin: 0; }
+@media (max-width: 600px) {
+    body.exam-mode .view-container { padding: var(--spacing-sm); }
+}

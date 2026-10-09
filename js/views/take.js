@@ -14,12 +14,16 @@
  * Either way the clock is based on saved deadlines (the server's clock for
  * cloud quizzes), so refreshing or leaving doesn't pause it, and coming back
  * resumes the same attempt.
+ *
+ * While a quiz is running the app is in exam mode (see Exam below): the rest
+ * of the app is hidden and can't be reached until the quiz is submitted or ended.
  */
 (function() {
     const RETURN_KEY = 'quizr_take_return';       // { code, at }: quiz to come back to after signing in
     const LOCAL_KEY = 'quizr_take_attempt_';      // + code: this tab's on-device attempt when there are no accounts
     const LETTERS = 'ABCDEFGHIJ';
     const SAVE_DELAY = 700;                       // ms after typing stops before a written answer is saved
+    const EXAM_KEY = 'quizr_exam';                // route of the quiz running in this tab (exam mode)
 
     const UI = () => window.QuizBowl.Utils.UI;
     const Hosting = () => window.QuizBowl.Services.Hosting;
@@ -85,8 +89,80 @@
     };
 
     function errorCard(icon, title, message, actions = `<a href="#take" class="btn btn-primary">Enter another code</a>`) {
+        Exam.unlock();
         return `<div class="card take-card">${UI().emptyState(icon, esc(title), message, actions)}</div>`;
     }
+
+    /**
+     * Exam mode while a quiz is running: the sidebar, menu and header are hidden,
+     * the router refuses to leave the quiz (see router.js), the browser asks before
+     * closing the tab, and the quiz runs in full screen where the device allows it.
+     * Leaving full screen covers the quiz until the person goes back to full screen.
+     * (A web page can't stop someone closing the browser; the clock keeps running
+     * and the attempt resumes when they come back.)
+     */
+    const Exam = {
+        route: null,
+        ownFullscreen: false,
+        noFullscreen: false,     // full screen was refused here; don't insist on it
+
+        active() {
+            return !!this.route;
+        },
+
+        lock() {
+            const route = (location.hash.substring(1) || '').replace(/^\//, '');
+            this.route = route;
+            window.QuizBowl.State.examLock = route;
+            // Remembered for this tab, so a reload locks the app again before anything else shows (see app.js)
+            store('session', EXAM_KEY, route);
+            document.body.classList.add('exam-mode');
+            const app = document.getElementById('app-container');
+            if (app) app.classList.remove('sidebar-open');
+            if (document.activeElement && document.activeElement.id === 'global-search') document.activeElement.blur();
+            this.updateGate();
+        },
+
+        unlock() {
+            if (!this.route && !window.QuizBowl.State.examLock) return;
+            this.route = null;
+            window.QuizBowl.State.examLock = null;
+            store('session', EXAM_KEY, null);
+            document.body.classList.remove('exam-mode');
+            if (this.ownFullscreen && document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
+            this.ownFullscreen = false;
+        },
+
+        // Must be called from a click (browsers only allow full screen after one)
+        enterFullscreen() {
+            const el = document.documentElement;
+            if (!document.fullscreenEnabled || !el.requestFullscreen || document.fullscreenElement || this.noFullscreen) return Promise.resolve();
+            return el.requestFullscreen({ navigationUI: 'hide' })
+                .then(() => { this.ownFullscreen = true; })
+                .catch(() => { this.noFullscreen = true; })
+                .then(() => this.updateGate());
+        },
+
+        needsFullscreen() {
+            return this.active() && !!document.fullscreenEnabled && !this.noFullscreen && !document.fullscreenElement;
+        },
+
+        updateGate() {
+            const gate = $('take-fs-gate');
+            if (gate) gate.hidden = !this.needsFullscreen();
+        }
+    };
+
+    window.addEventListener('beforeunload', e => {
+        if (!Exam.active()) return;
+        e.preventDefault();
+        e.returnValue = '';
+    });
+    document.addEventListener('fullscreenchange', () => {
+        if (!document.fullscreenElement) Exam.ownFullscreen = false;
+        else if (Exam.active()) Exam.ownFullscreen = true;
+        Exam.updateGate();
+    });
 
     const View = {
         // One question in a review list (used by the result screen and the host's marking page)
@@ -178,6 +254,7 @@
         },
 
         renderCodeEntry: function() {
+            Exam.unlock();
             this.container.innerHTML = `
                 <div class="card take-card take-code-entry">
                     <span class="stat-icon accent take-big-icon">${UI().icon('play')}</span>
@@ -197,6 +274,7 @@
         },
 
         renderSignIn: function() {
+            Exam.unlock();
             this.stage = 'signin';
             this.container.innerHTML = `
                 <div class="card take-card">
@@ -210,6 +288,7 @@
         },
 
         renderIntro: function(previous) {
+            Exam.unlock();
             const s = this.session, st = s.settings, who = this.who;
             const HostUtils = window.QuizBowl.Views.HostUtils;
             const name = (previous && previous.attempt.name) || who.suggestedName || '';
@@ -221,6 +300,7 @@
                    'Press <strong>Next</strong> to move on. When a question\'s time runs out, the next one opens automatically.',
                    'You can look back at earlier questions, but you can\'t change their answers.'];
             rules.push('<strong>End quiz</strong> submits what you have so far. Unanswered questions score 0.');
+            rules.push('The quiz opens in full screen, and the rest of the app is locked until you submit or end it.');
 
             this.container.innerHTML = `
                 <div class="card take-card take-intro">
@@ -251,6 +331,8 @@
                 const current = identity();
                 if (current.mode !== who.mode || current.userId !== who.userId) return this.render(this.container, this.code);
                 if (!input.value.trim()) { input.focus(); return; }
+                // Ask for full screen now, while it still counts as the person's click
+                Exam.enterFullscreen();
                 const btn = $('take-start');
                 btn.disabled = true;
                 btn.innerHTML = `${UI().icon('loader', 'spin')} Starting…`;
@@ -262,6 +344,7 @@
                 } catch (err) {
                     if (token !== renderToken) return;
                     Toast().show(err.message, 'danger');
+                    if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
                     if (/closed|already taken/i.test(err.message)) return this.render(this.container, this.code);
                     btn.disabled = false;
                     btn.innerHTML = `${UI().icon('play')} Start quiz`;
@@ -387,6 +470,14 @@
                         </div>
                         <button type="button" class="btn btn-danger-ghost" id="take-end">${UI().icon('x')} End quiz</button>
                     </header>
+                    <div class="take-fs-gate" id="take-fs-gate" role="dialog" aria-modal="true" aria-labelledby="take-fs-title" hidden>
+                        <div class="card take-card">
+                            <span class="stat-icon accent take-big-icon">${UI().icon('maximize')}</span>
+                            <h1 id="take-fs-title">Quiz in progress</h1>
+                            <p>This quiz runs in full screen. Go back to full screen to carry on. Your time is still running.</p>
+                            <button type="button" class="btn btn-primary btn-lg btn-block" id="take-fs-return">${UI().icon('maximize')} Return to full screen</button>
+                        </div>
+                    </div>
                     <div class="take-time-bar" aria-hidden="true"><span id="take-time-fill"></span></div>
                     <div class="take-layout">
                         <section class="card take-question" id="take-question" aria-live="polite"></section>
@@ -397,6 +488,7 @@
                         </aside>
                     </div>
                 </div>`;
+            Exam.lock();
             this.renderQuestion();
             this.bindRunner();
             this.tick();
@@ -623,6 +715,7 @@
             const root = $('take-root');
             root.setAttribute('tabindex', '-1');
             root.addEventListener('click', e => {
+                if (e.target.closest('#take-fs-return')) { Exam.enterFullscreen(); return; }
                 if (busy) return;
                 const option = e.target.closest('[data-answer]');
                 if (option && !option.disabled) {
@@ -667,6 +760,7 @@
         // ---------------- result ----------------
         renderResult: function(state) {
             stopTicker();
+            Exam.unlock();
             const token = renderToken;
             const a = state.attempt, s = state.session;
             this.session = s;
@@ -720,6 +814,7 @@
     };
 
     window.QuizBowl.Views.Take = View;
+    View.Exam = Exam;
 
     // Save a half-typed answer when the tab is hidden or closed
     document.addEventListener('visibilitychange', () => {
