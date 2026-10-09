@@ -216,6 +216,8 @@ create table if not exists public.hosted_attempts (
 
 -- The timer and order rules an attempt started with, so editing the quiz doesn't change running attempts
 alter table public.hosted_attempts add column if not exists settings jsonb;
+-- When the host last changed a mark (so the person can be told their result changed)
+alter table public.hosted_attempts add column if not exists marked_at timestamptz;
 
 create index if not exists hosted_attempts_quiz_idx on public.hosted_attempts (quiz_id);
 create index if not exists hosted_attempts_user_idx on public.hosted_attempts (user_id, quiz_id);
@@ -605,7 +607,8 @@ begin
             'startedAt', quizr_private.ms(v_a.started_at), 'submittedAt', quizr_private.ms(v_a.submitted_at),
             'endedBy', v_a.ended_by,
             'results', case when v_running then null else v_a.results end,
-            'score', v_a.score, 'maxScore', v_a.max_score, 'pending', v_a.pending),
+            'score', v_a.score, 'maxScore', v_a.max_score, 'pending', v_a.pending,
+            'markedAt', quizr_private.ms(v_a.marked_at)),
         'session', jsonb_set(quizr_private.public_session(v_q), '{settings}', quizr_private.settings_for(v_a, v_q)),
         'questions', v_visible,
         'review', v_review,
@@ -844,6 +847,29 @@ begin
 end;
 $$;
 
+-- Everything the caller has taken (newest first), with ones whose time ran out finished first
+create or replace function public.hosted_my_attempts()
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+    v_id uuid;
+begin
+    if auth.uid() is null then raise exception 'Please sign in first.'; end if;
+    for v_id in select id from public.hosted_attempts where user_id = auth.uid() and status = 'in_progress' loop
+        perform quizr_private.tick(v_id);
+    end loop;
+    return coalesce((
+        select jsonb_agg(jsonb_build_object(
+            'id', a.id, 'sessionId', a.quiz_id, 'code', q.code, 'title', q.title, 'open', q.is_open,
+            'questionCount', q.question_count, 'totalMarks', q.total_marks,
+            'name', a.name, 'status', a.status, 'score', a.score, 'maxScore', a.max_score, 'pending', a.pending,
+            'endedBy', a.ended_by, 'startedAt', quizr_private.ms(a.started_at), 'submittedAt', quizr_private.ms(a.submitted_at),
+            'markedAt', quizr_private.ms(a.marked_at)) order by a.started_at desc)
+        from public.hosted_attempts a
+        join public.hosted_quizzes q on q.id = a.quiz_id
+        where a.user_id = auth.uid()), '[]'::jsonb);
+end;
+$$;
+
 -- Host: bring attempts up to date (finish ones whose time has run out)
 create or replace function public.hosted_refresh(p_quiz uuid)
 returns void language plpgsql security definer set search_path = public as $$
@@ -881,7 +907,8 @@ begin
     update public.hosted_attempts
        set results = case when p_awarded is null then coalesce(results, '{}'::jsonb) - p_question
                           else coalesce(results, '{}'::jsonb) || jsonb_build_object(p_question, jsonb_build_object(
-                               'status', 'marked', 'awarded', greatest(0, least(v_marks, p_awarded)), 'marks', v_marks)) end
+                               'status', 'marked', 'awarded', greatest(0, least(v_marks, p_awarded)), 'marks', v_marks)) end,
+           marked_at = now()
      where id = p_attempt;
     perform quizr_private.rescore(p_attempt);
 end;
@@ -934,6 +961,7 @@ revoke all on function public.hosted_submit(uuid, text) from public, anon;
 revoke all on function public.hosted_refresh(uuid) from public, anon;
 revoke all on function public.hosted_set_mark(uuid, text, numeric) from public, anon;
 revoke all on function public.hosted_away(uuid, text) from public, anon;
+revoke all on function public.hosted_my_attempts() from public, anon;
 grant execute on function public.hosted_join(text) to authenticated;
 grant execute on function public.hosted_start(text, text) to authenticated;
 grant execute on function public.hosted_state(uuid) to authenticated;
@@ -944,3 +972,4 @@ grant execute on function public.hosted_submit(uuid, text) to authenticated;
 grant execute on function public.hosted_refresh(uuid) to authenticated;
 grant execute on function public.hosted_set_mark(uuid, text, numeric) to authenticated;
 grant execute on function public.hosted_away(uuid, text) to authenticated;
+grant execute on function public.hosted_my_attempts() to authenticated;

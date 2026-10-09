@@ -76,7 +76,8 @@
             score: num(row.score),
             maxScore: num(row.max_score),
             pending: row.pending || 0,
-            away: row.away_events || []
+            away: row.away_events || [],
+            markedAt: ms(row.marked_at)
         };
     }
 
@@ -185,6 +186,12 @@
             const client = await db();
             const { error } = await client.from('hosted_attempts').delete().eq('id', id);
             if (error) throw friendly(error);
+        },
+
+        // ---------- the signed-in person's own results ----------
+        async myAttempts() {
+            const rows = await rpc('hosted_my_attempts', {});
+            return (rows || []).map(r => ({ ...r, source: 'cloud', score: num(r.score), maxScore: num(r.maxScore), totalMarks: num(r.totalMarks) }));
         },
 
         // ---------- taking a quiz ----------

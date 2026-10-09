@@ -153,6 +153,38 @@
             Local().deleteAttempt(id);
         },
 
+        // ---------------- the person's own results ----------------
+        /**
+         * Everything this person has taken, newest first: from the cloud when signed in,
+         * plus attempts on this device (theirs, or all of them when there are no accounts).
+         * Returns { attempts, cloudError }.
+         */
+        async myAttempts() {
+            const L = Local();
+            const mode = this.hostMode();
+            const user = mode === 'cloud' ? Cloud().user() : null;
+            const local = L.allAttempts()
+                .filter(a => mode === 'local' || (user && a.userId === user.id))
+                .map(a => {
+                    const done = a.status === 'in_progress' ? localTick(a.id) : a;
+                    const s = L.getSession(done.sessionId);
+                    if (!s) return null;
+                    return {
+                        id: done.id, sessionId: s.id, code: s.code, title: s.title, open: s.open, source: 'local',
+                        questionCount: s.questions.length, totalMarks: L.totalMarks(s),
+                        name: done.name, status: done.status, score: done.score, maxScore: done.maxScore, pending: done.pending || 0,
+                        endedBy: done.endedBy, startedAt: done.startedAt, submittedAt: done.submittedAt, markedAt: done.markedAt || null
+                    };
+                })
+                .filter(Boolean);
+            let cloud = [], cloudError = null;
+            if (mode === 'cloud') {
+                try { cloud = await CloudHost().myAttempts(); } catch (err) { cloudError = err.message; }
+            }
+            const attempts = cloud.concat(local).sort((a, b) => b.startedAt - a.startedAt);
+            return { attempts, cloudError };
+        },
+
         // ---------------- taking a quiz ----------------
         /**
          * Find a quiz by code: on this device first, then in the cloud.

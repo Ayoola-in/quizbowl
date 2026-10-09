@@ -3,7 +3,7 @@
  * Service worker: precaches the app shell so the installed app opens offline.
  * Bump CACHE_VERSION whenever the file list below changes.
  */
-const CACHE_VERSION = 'quizr-v8';
+const CACHE_VERSION = 'quizr-v9';
 const RUNTIME_CACHE = 'quizbowl-runtime-v1';
 
 const APP_SHELL = [
@@ -65,6 +65,7 @@ const APP_SHELL = [
     './js/views/export.js',
     './js/views/host.js',
     './js/views/take.js',
+    './js/views/results.js',
     './js/views/account.js'
 ];
 

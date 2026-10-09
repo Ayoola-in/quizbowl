@@ -20,6 +20,7 @@
         'host-session': 'Hosted Quiz',
         'host-attempt': 'Score',
         'take': 'Take a Quiz',
+        'results': 'My Results',
         'account': 'Account & Sync'
     };
 
@@ -41,6 +42,7 @@
             'host-session': (id) => window.QuizBowl.Views.HostSession.render(document.getElementById('view-container'), id),
             'host-attempt': (id) => window.QuizBowl.Views.HostAttempt.render(document.getElementById('view-container'), id),
             'take': (code) => window.QuizBowl.Views.Take.render(document.getElementById('view-container'), code),
+            'results': (id) => window.QuizBowl.Views.Results.render(document.getElementById('view-container'), id),
             'account': () => window.QuizBowl.Views.Account.render(document.getElementById('view-container')),
         },
 

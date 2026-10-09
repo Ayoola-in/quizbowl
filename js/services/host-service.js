@@ -18,7 +18,8 @@
  *            order: [questionId], optionOrder: { questionId: [letter] }, answers: { questionId: value },
  *            current, questionDeadline (per-question mode), deadline (total mode), view,
  *            submittedAt, endedBy: 'finished'|'ended'|'timeout', results, score, maxScore, pending,
- *            away: [{ at, back, reason: 'left'|'reload' }] (times out of full screen) }
+ *            away: [{ at, back, reason: 'left'|'reload' }] (times out of full screen),
+ *            markedAt (when the host last changed a mark) }
  *   results: { questionId: { status: 'correct'|'wrong'|'pending'|'marked'|'unanswered', awarded, marks } }
  */
 (function() {
@@ -304,6 +305,11 @@
         forAttempt,
 
         // ---------- attempts ----------
+        // Every attempt on this device, newest first
+        allAttempts() {
+            return readAttempts().slice().sort((a, b) => b.startedAt - a.startedAt);
+        },
+
         listAttempts(sessionId) {
             return readAttempts().filter(a => a.sessionId === sessionId);
         },
@@ -460,6 +466,7 @@
             return this._update(attemptId, a => {
                 a.results[questionId] = { status: 'marked', awarded: value, marks: Number(q.marks) || 0 };
                 Object.assign(a, score(session, a));
+                a.markedAt = Date.now();
             });
         },
 
@@ -471,6 +478,7 @@
             return this._update(attemptId, a => {
                 delete a.results[questionId];
                 Object.assign(a, score(session, a));
+                a.markedAt = Date.now();
             });
         },
 

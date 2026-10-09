@@ -781,12 +781,15 @@
         },
 
         // ---------------- result ----------------
-        renderResult: function(state) {
+        // `opts.container` / `opts.fromResults` when shown from the My Results page
+        renderResult: function(state, opts = {}) {
             stopTicker();
             Exam.unlock();
+            if (opts.container) this.container = opts.container;
             const token = renderToken;
             const a = state.attempt, s = state.session;
             this.session = s;
+            this.source = state.source || this.source;
             const HostUtils = window.QuizBowl.Views.HostUtils;
             const pct = HostUtils.percent(a.score, a.maxScore);
             const counts = { correct: 0, wrong: 0, unanswered: 0, pending: 0 };
@@ -800,6 +803,7 @@
 
             this.container.innerHTML = `
                 <div class="take-result">
+                    ${opts.fromResults ? `<a href="#results" class="back-link">${UI().icon('back')} My results</a>` : ''}
                     <section class="card take-card take-result-card">
                         <div class="take-score-ring" style="--p: ${pct}"><span>${pct}%</span></div>
                         <h1>You scored ${a.score} out of ${a.maxScore}</h1>
@@ -811,10 +815,11 @@
                             <span><strong>${counts.unanswered}</strong> not answered</span>
                             ${counts.pending ? `<span class="is-pending"><strong>${counts.pending}</strong> awaiting marking</span>` : ''}
                         </div>
-                        ${a.pending ? `<div class="callout callout-info">${UI().icon('info')}<div><strong>Some answers need marking</strong>The host will mark ${a.pending === 1 ? 'one written answer' : `${a.pending} written answers`}, so your score may go up.</div></div>` : ''}
+                        ${a.pending ? `<div class="callout callout-info">${UI().icon('info')}<div><strong>Some answers need marking</strong>The host will mark ${a.pending === 1 ? 'one written answer' : `${a.pending} written answers`}, so your score may go up. You'll see it in My results.</div></div>` : ''}
+                        ${a.markedAt ? `<p class="take-marked">${UI().icon('pencil')} The host marked your answers ${esc(new Date(a.markedAt).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }))}.</p>` : ''}
                         <div class="take-result-actions">
                             ${canRetake ? `<button type="button" class="btn btn-primary" id="take-again">${UI().icon('reset')} Take it again</button>` : ''}
-                            <a href="#dashboard" class="btn btn-secondary">Done</a>
+                            <a href="#results" class="btn btn-secondary">${opts.fromResults ? 'Back to my results' : 'Done'}</a>
                         </div>
                     </section>
                     ${review ? `
@@ -830,8 +835,9 @@
             if (again) again.addEventListener('click', () => {
                 if (token !== renderToken) return;
                 retake = true;
-                if (this.source === 'local' && this.who && this.who.mode !== 'user') store('session', LOCAL_KEY + this.code, null);
-                this.render(this.container, this.code);
+                if (this.source === 'local' && (!this.who || this.who.mode !== 'user')) store('session', LOCAL_KEY + s.code, null);
+                if (window.QuizBowl.State.currentRoute === 'take') this.render(this.container, s.code);
+                else window.QuizBowl.Router.navigate('take/' + s.code);
             });
         }
     };

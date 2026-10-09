@@ -102,6 +102,8 @@ The quiz runs in full screen with the rest of the app locked. If someone leaves 
 
 The timing and marking happen on the server: people taking the quiz never receive the correct answers before they submit, questions that haven't opened yet aren't sent, and the clock is the server's. Question text from the host is cleaned before it's shown, so it can't run code in anyone's browser.
 
+**My Results** (in the sidebar) lists every hosted quiz you've taken: score and percentage, when, how it ended, and how many written answers are still awaiting marking. Quizzes still running have a **Continue** button. Open a result to see it in full (with the answers, if the host allows it). When the host marks your written answers or changes a mark, the result shows **Newly marked** and the sidebar item gets a dot until you open it.
+
 On a copy of Quizr without accounts set up, hosting still works, but quizzes and scores stay on the device that hosts them (people take the quiz on that device).
 
 ## Adding Questions
