@@ -130,8 +130,44 @@
             root.querySelectorAll('[data-icon]').forEach(el => {
                 el.outerHTML = UI.icon(el.getAttribute('data-icon'));
             });
+        },
+
+        /**
+         * Question text written by someone else (e.g. a hosted quiz) as safe HTML:
+         * simple formatting, lists, tables and images are kept; scripts, styles,
+         * event handlers, links and everything else are removed. Maths stays as
+         * text for MathJax.
+         */
+        safeHtml: function(html) {
+            const doc = new DOMParser().parseFromString(`<body>${String(html == null ? '' : html)}</body>`, 'text/html');
+            const clean = node => {
+                [...node.childNodes].forEach(child => {
+                    if (child.nodeType === Node.TEXT_NODE) return;
+                    if (child.nodeType !== Node.ELEMENT_NODE) { child.remove(); return; }
+                    const tag = child.tagName;
+                    if (DROP_TAGS.has(tag)) { child.remove(); return; }
+                    clean(child);
+                    if (!SAFE_TAGS.has(tag)) { child.replaceWith(...child.childNodes); return; }
+                    [...child.attributes].forEach(attr => {
+                        const name = attr.name.toLowerCase();
+                        const keep = (tag === 'IMG' && name === 'alt')
+                            || (tag === 'IMG' && name === 'src' && /^(https?:|data:image\/(png|jpe?g|gif|webp);)/i.test(attr.value.trim()))
+                            || ((tag === 'TD' || tag === 'TH') && (name === 'colspan' || name === 'rowspan') && /^\d{1,2}$/.test(attr.value));
+                        if (!keep) child.removeAttribute(attr.name);
+                    });
+                    if (tag === 'IMG' && !child.getAttribute('src')) child.remove();
+                });
+            };
+            clean(doc.body);
+            return doc.body.innerHTML;
         }
     };
+
+    const SAFE_TAGS = new Set(['B', 'STRONG', 'I', 'EM', 'U', 'S', 'SUB', 'SUP', 'SMALL', 'MARK', 'BR', 'HR', 'P', 'DIV', 'SPAN',
+        'UL', 'OL', 'LI', 'CODE', 'PRE', 'BLOCKQUOTE', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6',
+        'TABLE', 'THEAD', 'TBODY', 'TFOOT', 'TR', 'TD', 'TH', 'CAPTION', 'IMG']);
+    const DROP_TAGS = new Set(['SCRIPT', 'STYLE', 'IFRAME', 'FRAME', 'FRAMESET', 'OBJECT', 'EMBED', 'APPLET', 'TEMPLATE',
+        'NOSCRIPT', 'LINK', 'META', 'BASE', 'FORM', 'INPUT', 'BUTTON', 'SELECT', 'TEXTAREA', 'SVG', 'MATH', 'TITLE', 'HEAD']);
 
     window.QuizBowl.Utils.UI = UI;
 

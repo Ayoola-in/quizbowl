@@ -3,20 +3,35 @@
  * Hosting quizzes that people take on their own:
  *  - #host              hosted quizzes, and a box to enter a quiz code
  *  - #host-new          choose the quiz, questions, order and timer, then launch
- *  - #host-session/ID   the join code, rules and everyone's scores
+ *  - #host-session/ID   the code and share link, rules and everyone's scores
  *  - #host-attempt/ID   one person's answers, with marking for written answers
+ *
+ * With accounts, hosted quizzes live in the cloud and anyone signed in can
+ * join with the code. Without them, they stay on this device.
+ * Everything goes through services/hosting.js.
  */
 (function() {
     const TYPE_LABELS = { mcq: 'Multiple choice', true_false: 'True / False', theory: 'Short answer', calculation: 'Calculation' };
+    const TYPES = ['mcq', 'true_false', 'theory', 'calculation'];
+    const DEFAULT_TIMES = { mcq: 20, true_false: 10, theory: 30, calculation: 60 };
+    const DEFAULT_SETTINGS = {
+        timerMode: 'question', times: { ...DEFAULT_TIMES }, totalSeconds: 600,
+        groupByCategory: false, shuffleQuestions: false, shuffleOptions: false, showReview: true, allowRetake: false
+    };
+    const UNCATEGORISED = 'Uncategorised';
     const PREFS_KEY = 'host_prefs';
     const ENDED = { finished: 'Finished', ended: 'Ended early', timeout: 'Time ran out' };
+    const REFRESH_MS = 20000;
 
     const UI = () => window.QuizBowl.Utils.UI;
-    const Host = () => window.QuizBowl.Services.HostService;
+    const Hosting = () => window.QuizBowl.Services.Hosting;
     const Storage = () => window.QuizBowl.Data.Storage;
     const Toast = () => window.QuizBowl.Components.Toast;
     const esc = v => UI().escapeHtml(v);
     const $ = id => document.getElementById(id);
+
+    let renderToken = 0;       // guards async page loads against navigating away meanwhile
+    let refreshTimer = null;
 
     function idNumber(id) {
         return parseInt(String(id).replace(/\D+/g, ''), 10) || 0;
@@ -41,8 +56,11 @@
 
     function timerSummary(session) {
         const st = session.settings;
-        if (st.timerMode === 'total') return `${formatDuration(st.totalSeconds)} in total`;
-        return 'Timed per question';
+        return st.timerMode === 'total' ? `${formatDuration(st.totalSeconds)} in total` : 'Timed per question';
+    }
+
+    function shareLink(code) {
+        return `${location.origin}${location.pathname}#take/${code}`;
     }
 
     function attemptState(a) {
@@ -50,27 +68,76 @@
         return `<span class="badge ${a.endedBy === 'finished' ? 'badge-correct' : 'badge-answered'}">${ENDED[a.endedBy] || 'Submitted'}</span>`;
     }
 
+    function loading(container, text) {
+        container.innerHTML = `<div class="card host-loading">${UI().icon('loader', 'spin')} ${esc(text)}</div>`;
+    }
+
+    function failed(container, err, retry) {
+        container.innerHTML = `<div class="card">${UI().emptyState('cloud', 'Couldn\'t load this', esc(err.message),
+            `<button type="button" class="btn btn-primary" id="host-retry">Try again</button>`)}</div>`;
+        $('host-retry').addEventListener('click', retry);
+    }
+
+    function stopRefresh() {
+        if (refreshTimer) clearInterval(refreshTimer);
+        refreshTimer = null;
+    }
+
+    async function copyText(text, label) {
+        try {
+            await navigator.clipboard.writeText(text);
+            Toast().show(`Copied ${label}.`, 'success');
+        } catch (e) {
+            window.QuizBowl.Components.Modal.prompt({ title: `Copy the ${label}`, message: 'Select it and press Ctrl+C.', input: { value: text }, confirmText: 'Done' });
+        }
+    }
+
     function getPrefs() {
         const saved = Storage().getGlobal(PREFS_KEY, {}) || {};
-        const defaults = Host().DEFAULT_SETTINGS;
-        return { ...defaults, ...saved, times: { ...defaults.times, ...(saved.times || {}) } };
+        return { ...DEFAULT_SETTINGS, ...saved, times: { ...DEFAULT_SETTINGS.times, ...(saved.times || {}) } };
     }
     function savePrefs(patch) {
         Storage().setGlobal(PREFS_KEY, { ...getPrefs(), ...patch });
     }
 
+    function signInCallout(text) {
+        return `<div class="callout callout-info host-callout">${UI().icon('user')}<div><strong>Sign in to host</strong>${text}
+            <a href="#account" class="btn btn-primary btn-sm host-callout-btn">Sign in</a></div></div>`;
+    }
+
     // =====================================================================
     // #host: list of hosted quizzes
     // =====================================================================
+    function sessionItem(s) {
+        const stats = s.stats || { submitted: 0, running: 0, pending: 0 };
+        return `
+            <a class="host-item" href="#host-session/${encodeURIComponent(s.id)}">
+                <span class="host-item-code">${esc(s.code)}</span>
+                <span class="host-item-main">
+                    <strong>${esc(s.title)}</strong>
+                    <small>${s.questionCount} question${s.questionCount === 1 ? '' : 's'} · ${esc(timerSummary(s))} · ${formatDate(s.createdAt)}</small>
+                </span>
+                <span class="host-item-stats">
+                    ${stats.pending ? `<span class="badge badge-partial">${stats.pending} to mark</span>` : ''}
+                    <span class="badge ${s.open ? 'badge-available' : 'badge-answered'}">${s.open ? 'Open' : 'Closed'}</span>
+                    <span class="host-item-count">${stats.submitted} score${stats.submitted === 1 ? '' : 's'}</span>
+                </span>
+            </a>`;
+    }
+
     window.QuizBowl.Views.Host = {
-        render: function(container) {
-            const sessions = Host().listSessions();
+        render: async function(container) {
+            stopRefresh();
+            const token = ++renderToken;
+            const mode = Hosting().hostMode();
             container.innerHTML = `
                 <div class="host-view">
                     <div class="page-header">
                         <div>
                             <h1>Host a Quiz</h1>
-                            <p>Pick questions, set a timer and get a code. People take the quiz one question at a time and their scores are saved here.</p>
+                            <p>Pick questions, set a timer and get a code. ${mode === 'local'
+                                ? 'People take the quiz on this device and their scores are saved here.'
+                                : 'Anyone with the code or link can sign in and take it from their own device, and their scores come back to you.'}</p>
                         </div>
                         <div class="page-actions">
                             <a href="#host-new" class="btn btn-primary">${UI().icon('plus')} Host a new quiz</a>
@@ -80,7 +147,7 @@
                     <section class="card host-join">
                         <div>
                             <h2>Take a quiz</h2>
-                            <p>Enter the quiz code to start an attempt on this device.</p>
+                            <p>Got a code from someone? Enter it to start.</p>
                         </div>
                         <form id="host-join-form" class="host-join-form" autocomplete="off">
                             <input type="text" id="host-join-code" class="form-control host-code-input" placeholder="e.g. K7Q2XP" maxlength="8" aria-label="Quiz code" spellcheck="false">
@@ -88,34 +155,7 @@
                         </form>
                     </section>
 
-                    ${sessions.length ? `
-                    <section class="card">
-                        <div class="card-header"><div><h2>Your hosted quizzes</h2><p>${sessions.length} quiz${sessions.length === 1 ? '' : 'zes'}</p></div></div>
-                        <div class="host-list">
-                            ${sessions.map(s => {
-                                const attempts = Host().listAttempts(s.id);
-                                const done = attempts.filter(a => a.status === 'submitted');
-                                const pending = done.reduce((n, a) => n + (a.pending || 0), 0);
-                                return `
-                                <a class="host-item" href="#host-session/${encodeURIComponent(s.id)}">
-                                    <span class="host-item-code">${esc(s.code)}</span>
-                                    <span class="host-item-main">
-                                        <strong>${esc(s.title)}</strong>
-                                        <small>${s.questions.length} question${s.questions.length === 1 ? '' : 's'} · ${esc(timerSummary(s))} · ${formatDate(s.createdAt)}</small>
-                                    </span>
-                                    <span class="host-item-stats">
-                                        ${pending ? `<span class="badge badge-partial">${pending} to mark</span>` : ''}
-                                        <span class="badge ${s.open ? 'badge-available' : 'badge-answered'}">${s.open ? 'Open' : 'Closed'}</span>
-                                        <span class="host-item-count">${done.length} score${done.length === 1 ? '' : 's'}</span>
-                                    </span>
-                                </a>`;
-                            }).join('')}
-                        </div>
-                    </section>` : `
-                    <section class="card">
-                        ${UI().emptyState('play', 'No hosted quizzes yet', 'Host a quiz to get a code that people can use to take it.',
-                            `<a href="#host-new" class="btn btn-primary">${UI().icon('plus')} Host a new quiz</a>`)}
-                    </section>`}
+                    <div id="host-lists"><div class="card host-loading">${UI().icon('loader', 'spin')} Loading your hosted quizzes…</div></div>
                 </div>
             `;
 
@@ -123,12 +163,42 @@
                 e.preventDefault();
                 const code = $('host-join-code').value.toUpperCase().replace(/[^A-Z0-9]/g, '');
                 if (!code) { $('host-join-code').focus(); return; }
-                if (!Host().getSessionByCode(code)) {
-                    Toast().show(`There's no quiz with the code ${code} on this device.`, 'danger');
-                    return;
-                }
                 window.QuizBowl.Router.navigate('take/' + code);
             });
+
+            let lists;
+            try {
+                lists = await Hosting().listSessions();
+            } catch (err) {
+                if (token !== renderToken) return;
+                return failed($('host-lists'), err, () => this.render(container));
+            }
+            if (token !== renderToken) return;
+            const { cloud, local, cloudError } = lists;
+            const parts = [];
+            if (cloudError) parts.push(`<div class="callout callout-danger host-callout">${UI().icon('alert')}<div><strong>Couldn't load your hosted quizzes</strong>${esc(cloudError)}</div></div>`);
+            if (mode === 'signin') parts.push(signInCallout('Sign in to your Quizr account to host quizzes people can join from anywhere, and to see their scores.'));
+            if (mode === 'loading') parts.push(`<div class="card host-loading">${UI().icon('loader', 'spin')} Checking your account…</div>`);
+            if (cloud.length) {
+                parts.push(`
+                    <section class="card">
+                        <div class="card-header"><div><h2>Your hosted quizzes</h2><p>${cloud.length} quiz${cloud.length === 1 ? '' : 'zes'} · anyone with the code can join</p></div></div>
+                        <div class="host-list">${cloud.map(sessionItem).join('')}</div>
+                    </section>`);
+            }
+            if (local.length) {
+                parts.push(`
+                    <section class="card">
+                        <div class="card-header"><div><h2>${mode === 'local' ? 'Your hosted quizzes' : 'On this device only'}</h2>
+                            <p>${mode === 'local' ? `${local.length} quiz${local.length === 1 ? '' : 'zes'}` : 'Hosted before sharing was available. They can only be taken on this device.'}</p></div></div>
+                        <div class="host-list">${local.map(sessionItem).join('')}</div>
+                    </section>`);
+            }
+            if (!cloud.length && !local.length && mode !== 'loading' && !cloudError) {
+                parts.push(`<section class="card">${UI().emptyState('play', 'No hosted quizzes yet', 'Host a quiz to get a code that people can use to take it.',
+                    `<a href="#host-new" class="btn btn-primary">${UI().icon('plus')} Host a new quiz</a>`)}</section>`);
+            }
+            $('host-lists').innerHTML = parts.join('');
         }
     };
 
@@ -143,16 +213,19 @@
         picked: new Set(),
         search: '',
         title: '',
-        totalTouched: false
+        times: null,
+        totalMinutes: 10,
+        totalTouched: false,
+        launching: false
     };
 
     function quizQuestions(quizId) {
         return (Storage().getForQuiz(quizId, 'questions', []) || [])
-            .filter(q => q && q.status !== 'disabled' && Host().TYPES.includes(q.type))
-            .sort((a, b) => Host().TYPES.indexOf(a.type) - Host().TYPES.indexOf(b.type) || idNumber(a.id) - idNumber(b.id));
+            .filter(q => q && q.status !== 'disabled' && TYPES.includes(q.type))
+            .sort((a, b) => TYPES.indexOf(a.type) - TYPES.indexOf(b.type) || idNumber(a.id) - idNumber(b.id));
     }
 
-    const categoryOf = q => (q.category || '').trim() || Host().UNCATEGORISED;
+    const categoryOf = q => (q.category || '').trim() || UNCATEGORISED;
 
     function selected() {
         const all = quizQuestions(S.quizId);
@@ -166,12 +239,12 @@
     function defaultTimes(quizId) {
         const quizSettings = Storage().getForQuiz(quizId, 'settings', {}) || {};
         const fromQuiz = {};
-        Host().TYPES.forEach(t => {
+        TYPES.forEach(t => {
             const v = Number(quizSettings[t + 'Time']);
             if (v > 0) fromQuiz[t] = Math.max(5, v);
         });
         const saved = (Storage().getGlobal(PREFS_KEY, {}) || {}).times || {};
-        return { ...Host().DEFAULT_TIMES, ...fromQuiz, ...saved };
+        return { ...DEFAULT_TIMES, ...fromQuiz, ...saved };
     }
 
     function suggestedTotal(questions, times) {
@@ -179,13 +252,30 @@
         return Math.max(1, Math.ceil(secs / 60));
     }
 
+    // Only what a hosted quiz needs from each question
+    function snapshot(q) {
+        const copy = {
+            id: q.id, type: q.type, category: categoryOf(q), question: q.question || '',
+            marks: Number(q.marks) || 0, explanation: q.explanation || ''
+        };
+        if (q.type === 'mcq') { copy.options = { ...(q.options || {}) }; copy.correctAnswer = q.correctAnswer || ''; }
+        else if (q.type === 'true_false') copy.correctAnswer = q.correctAnswer || '';
+        else {
+            copy.expectedAnswer = q.expectedAnswer || q.correctAnswer || '';
+            if (q.unit) copy.unit = q.unit;
+        }
+        return copy;
+    }
+
     window.QuizBowl.Views.HostNew = {
         render: function(container) {
+            stopRefresh();
+            ++renderToken;
             const QuizzesDB = window.QuizBowl.Data.QuizzesDB;
             const quizzes = QuizzesDB.getAll();
             if (!S.quizId || !QuizzesDB.getById(S.quizId)) this.resetFor(QuizzesDB.getActiveId());
             const prefs = getPrefs();
-            S.times = S.times || defaultTimes(S.quizId);
+            S.launching = false;
 
             const toggle = (key, label, hint) => `
                 <label class="gen-toggle">
@@ -199,7 +289,7 @@
                     <div class="page-header">
                         <div>
                             <h1>Host a new quiz</h1>
-                            <p>Choose the questions and the rules. You'll get a code for taking the quiz.</p>
+                            <p>Choose the questions and the rules. You'll get a code and a link for taking the quiz.</p>
                         </div>
                     </div>
                     <div class="gen-layout">
@@ -281,7 +371,7 @@
             const quiz = window.QuizBowl.Data.QuizzesDB.getById(quizId);
             S.quizId = quizId;
             S.mode = 'all';
-            S.types = new Set(Host().TYPES);
+            S.types = new Set(TYPES);
             S.cats = new Set(quizQuestions(quizId).map(categoryOf));
             S.picked = new Set();
             S.search = '';
@@ -305,7 +395,7 @@
             } else if (S.mode === 'types') {
                 body.innerHTML = `
                     <div class="export-type-grid">
-                        ${Host().TYPES.map(t => {
+                        ${TYPES.map(t => {
                             const n = all.filter(q => q.type === t).length;
                             return `
                                 <label class="choice-card export-type ${n ? '' : 'is-empty'}">
@@ -374,7 +464,7 @@
             const body = $('hn-timer-body');
             const prefs = getPrefs();
             const questions = selected();
-            const typesUsed = Host().TYPES.filter(t => questions.some(q => q.type === t));
+            const typesUsed = TYPES.filter(t => questions.some(q => q.type === t));
             if (prefs.timerMode === 'total') {
                 if (!S.totalTouched) S.totalMinutes = suggestedTotal(questions, S.times);
                 body.innerHTML = `
@@ -389,7 +479,7 @@
             } else {
                 body.innerHTML = `
                     <div class="host-times">
-                        ${(typesUsed.length ? typesUsed : Host().TYPES).map(t => `
+                        ${(typesUsed.length ? typesUsed : TYPES).map(t => `
                             <div class="form-group">
                                 <label for="hn-time-${t}">${UI().typeChip(t)} ${TYPE_LABELS[t]}</label>
                                 <div class="host-number">
@@ -405,7 +495,7 @@
         settings: function() {
             const prefs = getPrefs();
             return {
-                timerMode: prefs.timerMode,
+                timerMode: prefs.timerMode === 'total' ? 'total' : 'question',
                 times: { ...S.times },
                 totalSeconds: Math.round((Number(S.totalMinutes) || 0) * 60),
                 groupByCategory: !!prefs.groupByCategory,
@@ -421,11 +511,15 @@
             if (!el) return;
             const questions = selected();
             const st = this.settings();
+            const mode = Hosting().hostMode();
             const marks = questions.reduce((a, q) => a + (Number(q.marks) || 0), 0);
-            const byType = Host().TYPES.map(t => [t, questions.filter(q => q.type === t).length]).filter(([, n]) => n);
+            const byType = TYPES.map(t => [t, questions.filter(q => q.type === t).length]).filter(([, n]) => n);
             const perQuestion = questions.reduce((sum, q) => sum + Math.max(5, Number(st.times[q.type]) || 30), 0);
             const totalOk = st.timerMode !== 'total' || st.totalSeconds >= 60;
-            const blocker = !questions.length ? 'Choose at least one question.' : !totalOk ? 'Set a total time of at least 1 minute.' : '';
+            const blocker = mode === 'signin' ? 'Sign in to your Quizr account to host a quiz.'
+                : mode === 'loading' ? 'Checking your account…'
+                : !questions.length ? 'Choose at least one question.'
+                : !totalOk ? 'Set a total time of at least 1 minute.' : '';
             el.innerHTML = `
                 <h2 class="gen-summary-title">${UI().icon('play')} Your hosted quiz</h2>
                 <dl class="gen-summary-list">
@@ -436,8 +530,12 @@
                     <div><dt>${st.timerMode === 'total' ? 'Time allowed' : 'Longest possible'}</dt><dd>${formatDuration(st.timerMode === 'total' ? st.totalSeconds : perQuestion)}</dd></div>
                     <div><dt>Order</dt><dd>${[st.groupByCategory ? 'By category' : '', st.shuffleQuestions ? 'Shuffled' : ''].filter(Boolean).join(', ') || 'As listed'}</dd></div>
                 </dl>
-                <button type="button" class="btn btn-primary btn-lg btn-block" id="hn-launch" ${blocker ? 'disabled' : ''}>${UI().icon('play')} Launch quiz</button>
-                <p class="form-hint gen-blocker">${blocker || 'You\'ll get a code. People need to sign in to their Quizr account to take the quiz.'}</p>
+                ${mode === 'signin'
+                    ? `<a href="#account" class="btn btn-primary btn-lg btn-block">${UI().icon('user')} Sign in to host</a>`
+                    : `<button type="button" class="btn btn-primary btn-lg btn-block" id="hn-launch" ${blocker || S.launching ? 'disabled' : ''}>${S.launching ? `${UI().icon('loader', 'spin')} Launching…` : `${UI().icon('play')} Launch quiz`}</button>`}
+                <p class="form-hint gen-blocker">${blocker || (mode === 'cloud'
+                    ? 'You\'ll get a code and a link. People sign in to their Quizr account to take the quiz from any device.'
+                    : 'You\'ll get a code for taking the quiz on this device.')}</p>
             `;
         },
 
@@ -446,14 +544,18 @@
             this.renderSummary();
         },
 
-        launch: function() {
+        launch: async function() {
+            if (S.launching) return;
             const quiz = window.QuizBowl.Data.QuizzesDB.getById(S.quizId);
+            const token = renderToken;
+            S.launching = true;
+            this.renderSummary();
             try {
-                const session = Host().createSession({
+                const session = await Hosting().createSession({
                     title: ($('hn-title').value || '').trim() || (quiz ? quiz.name : 'Quiz'),
                     quizId: S.quizId,
                     quizName: quiz ? quiz.name : '',
-                    questions: selected(),
+                    questions: selected().map(snapshot),
                     settings: this.settings()
                 });
                 savePrefs({ times: { ...S.times } });
@@ -462,6 +564,9 @@
                 window.QuizBowl.Router.navigate('host-session/' + encodeURIComponent(session.id));
             } catch (err) {
                 Toast().show(err.message, 'danger');
+            } finally {
+                S.launching = false;
+                if (token === renderToken) this.renderSummary();
             }
         },
 
@@ -554,18 +659,19 @@
     };
 
     // =====================================================================
-    // #host-session/ID: code, rules and scores
+    // #host-session/ID: code, link, rules and scores
     // =====================================================================
     function csvCell(v) {
-        const s = String(v == null ? '' : v);
+        let s = String(v == null ? '' : v);
+        // Stop spreadsheet apps treating names like "=SUM(...)" as formulas
+        if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
         return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
     }
 
-    function downloadCsv(session) {
-        const attempts = Host().listAttempts(session.id).filter(a => a.status === 'submitted')
-            .sort((a, b) => b.score - a.score || a.submittedAt - b.submittedAt);
-        const rows = [['Name', 'Email', 'Score', 'Out of', 'Percent', 'Awaiting marking', 'Time taken (sec)', 'How it ended', 'Started', 'Submitted']];
-        attempts.forEach(a => rows.push([a.name, a.email, a.score, a.maxScore, percent(a.score, a.maxScore), a.pending || 0,
+    function downloadCsv(session, attempts) {
+        const done = attempts.filter(a => a.status === 'submitted').sort((a, b) => b.score - a.score || a.submittedAt - b.submittedAt);
+        const rows = [['Rank', 'Name', 'Email', 'Score', 'Out of', 'Percent', 'Awaiting marking', 'Time taken (sec)', 'How it ended', 'Started', 'Submitted']];
+        done.forEach((a, i) => rows.push([i + 1, a.name, a.email, a.score, a.maxScore, percent(a.score, a.maxScore), a.pending || 0,
             Math.round((a.submittedAt - a.startedAt) / 1000), ENDED[a.endedBy] || '', new Date(a.startedAt).toISOString(), new Date(a.submittedAt).toISOString()]));
         const blob = new Blob(['﻿' + rows.map(r => r.map(csvCell).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' });
         const url = URL.createObjectURL(blob);
@@ -579,21 +685,61 @@
     }
 
     window.QuizBowl.Views.HostSession = {
-        render: function(container, id) {
-            const session = Host().getSession(id);
+        render: async function(container, id) {
+            stopRefresh();
+            const token = ++renderToken;
+            loading(container, 'Loading the quiz and scores…');
+            let session, attempts;
+            try {
+                session = await Hosting().getSession(id);
+                attempts = session ? await Hosting().listAttempts(session.id) : [];
+            } catch (err) {
+                if (token !== renderToken) return;
+                return failed(container, err, () => this.render(container, id));
+            }
+            if (token !== renderToken) return;
             if (!session) {
                 container.innerHTML = `<div class="card">${UI().emptyState('inbox', 'Hosted quiz not found', 'It may have been deleted.',
                     `<a href="#host" class="btn btn-primary">Hosted quizzes</a>`)}</div>`;
                 return;
             }
+            this.draw(container, session, attempts);
+            // Scores from other devices: keep the page up to date while it's open
+            if (session.source === 'cloud') {
+                refreshTimer = setInterval(() => {
+                    if (!$('hs-scores') || document.visibilityState !== 'visible') return;
+                    this.reload(container, session.id, token, true);
+                }, REFRESH_MS);
+            }
+        },
+
+        reload: async function(container, id, token, quiet) {
+            const btn = $('hs-refresh');
+            if (btn && !quiet) { btn.disabled = true; btn.innerHTML = `${UI().icon('loader', 'spin')} Refreshing`; }
+            try {
+                const [session, attempts] = await Promise.all([Hosting().getSession(id), Hosting().listAttempts(id)]);
+                if (token !== renderToken || !session) return;
+                const scrollTop = document.getElementById('view-container').scrollTop;
+                this.draw(container, session, attempts);
+                document.getElementById('view-container').scrollTop = scrollTop;
+            } catch (err) {
+                if (!quiet && token === renderToken) Toast().show(err.message, 'danger');
+                if (btn && token === renderToken) { btn.disabled = false; btn.innerHTML = `${UI().icon('reset')} Refresh`; }
+            }
+        },
+
+        draw: function(container, session, attempts) {
+            const token = renderToken;
             const st = session.settings;
-            const attempts = Host().listAttempts(session.id);
+            const cloud = session.source === 'cloud';
             const done = attempts.filter(a => a.status === 'submitted').sort((a, b) => b.score - a.score || a.submittedAt - b.submittedAt);
             const live = attempts.filter(a => a.status !== 'submitted').sort((a, b) => b.startedAt - a.startedAt);
             const avg = done.length ? Math.round(done.reduce((s, a) => s + percent(a.score, a.maxScore), 0) / done.length) : null;
             const best = done.length ? Math.max(...done.map(a => percent(a.score, a.maxScore))) : null;
             const pending = done.reduce((n, a) => n + (a.pending || 0), 0);
-            const typeCounts = Host().TYPES.map(t => [t, session.questions.filter(q => q.type === t).length]).filter(([, n]) => n);
+            const questions = session.questions || [];
+            const typeCounts = TYPES.map(t => [t, questions.filter(q => q.type === t).length]).filter(([, n]) => n);
+            const link = shareLink(session.code);
 
             const row = (a, rank) => {
                 const time = a.status === 'submitted' ? formatDuration((a.submittedAt - a.startedAt) / 1000) : '—';
@@ -615,7 +761,7 @@
                     <div class="page-header">
                         <div>
                             <h1>${esc(session.title)} <span class="badge ${session.open ? 'badge-available' : 'badge-answered'}">${session.open ? 'Open' : 'Closed'}</span></h1>
-                            <p>${session.quizName && session.quizName !== session.title ? `From ${esc(session.quizName)} · ` : ''}Hosted ${formatDate(session.createdAt)}</p>
+                            <p>${session.quizName && session.quizName !== session.title ? `From ${esc(session.quizName)} · ` : ''}Hosted ${formatDate(session.createdAt)}${cloud ? '' : ' · on this device only'}</p>
                         </div>
                         <div class="page-actions">
                             <button type="button" class="btn btn-secondary" id="hs-toggle">${UI().icon(session.open ? 'lock' : 'play')} ${session.open ? 'Close quiz' : 'Reopen quiz'}</button>
@@ -627,19 +773,23 @@
                         <section class="card host-code-card">
                             <span class="host-code-label">Quiz code</span>
                             <div class="host-code" id="hs-code">${esc(session.code)}</div>
+                            ${cloud ? `<div class="host-link" title="${esc(link)}">${esc(link.replace(/^https?:\/\//, ''))}</div>` : ''}
                             <div class="host-code-actions">
                                 <button type="button" class="btn btn-secondary btn-sm" id="hs-copy">${UI().icon('copy')} Copy code</button>
-                                <a href="#take/${esc(session.code)}" class="btn btn-primary btn-sm ${session.open ? '' : 'is-disabled'}" id="hs-take" ${session.open ? '' : 'aria-disabled="true" tabindex="-1"'}>${UI().icon('play')} Take the quiz</a>
+                                ${cloud ? `<button type="button" class="btn btn-secondary btn-sm" id="hs-copy-link">${UI().icon('external')} Copy link</button>` : ''}
+                                <a href="#take/${esc(session.code)}" class="btn btn-primary btn-sm ${session.open ? '' : 'is-disabled'}" id="hs-take" ${session.open ? '' : 'aria-disabled="true" tabindex="-1"'}>${UI().icon('play')} Try it</a>
                             </div>
-                            <p class="form-hint">${session.open ? 'For now, the quiz can be taken on this device. Sharing with other devices is coming next.' : 'Closed: no new attempts can start.'}</p>
+                            <p class="form-hint">${!session.open ? 'Closed: no new attempts can start. Attempts already running can finish.'
+                                : cloud ? 'Share the code or link. People sign in to their Quizr account, enter their name and start.'
+                                : 'This quiz can only be taken on this device.'}</p>
                         </section>
                         <section class="card host-rules">
                             <h2>Rules</h2>
                             <dl class="gen-summary-list">
-                                <div><dt>Questions</dt><dd>${session.questions.length} · ${Host().totalMarks(session)} marks</dd></div>
+                                <div><dt>Questions</dt><dd>${session.questionCount} · ${session.totalMarks} marks</dd></div>
                                 <div><dt>Types</dt><dd>${typeCounts.map(([t, n]) => `${UI().typeChip(t)} ${n}`).join(' ')}</dd></div>
                                 <div><dt>Timer</dt><dd>${st.timerMode === 'total' ? `${formatDuration(st.totalSeconds)} in total` : 'Per question'}</dd></div>
-                                ${st.timerMode === 'question' ? `<div><dt>Seconds each</dt><dd>${Host().TYPES.filter(t => session.questions.some(q => q.type === t)).map(t => `${UI().typeChip(t)} ${st.times[t]}`).join(' ')}</dd></div>` : ''}
+                                ${st.timerMode !== 'total' ? `<div><dt>Seconds each</dt><dd>${TYPES.filter(t => questions.some(q => q.type === t)).map(t => `${UI().typeChip(t)} ${st.times[t]}`).join(' ')}</dd></div>` : ''}
                                 <div><dt>Order</dt><dd>${[st.groupByCategory ? 'By category' : '', st.shuffleQuestions ? 'Shuffled' : '', st.shuffleOptions ? 'Options shuffled' : ''].filter(Boolean).join(', ') || 'As listed'}</dd></div>
                                 <div><dt>After submitting</dt><dd>${st.showReview ? 'Score and answers' : 'Score only'}</dd></div>
                                 <div><dt>Attempts</dt><dd>${st.allowRetake ? 'More than one allowed' : 'One per person'}</dd></div>
@@ -647,13 +797,16 @@
                         </section>
                     </div>
 
-                    <section class="card">
+                    <section class="card" id="hs-scores">
                         <div class="card-header">
                             <div>
                                 <h2>Scores</h2>
                                 <p>${done.length} submitted${live.length ? ` · ${live.length} in progress` : ''}${avg != null ? ` · average ${avg}% · best ${best}%` : ''}</p>
                             </div>
-                            ${done.length ? `<button type="button" class="btn btn-secondary btn-sm" id="hs-csv">${UI().icon('download')} Download CSV</button>` : ''}
+                            <div class="host-score-actions">
+                                ${cloud ? `<button type="button" class="btn btn-ghost btn-sm" id="hs-refresh">${UI().icon('reset')} Refresh</button>` : ''}
+                                ${done.length ? `<button type="button" class="btn btn-secondary btn-sm" id="hs-csv">${UI().icon('download')} Download CSV</button>` : ''}
+                            </div>
                         </div>
                         ${pending ? `<div class="callout callout-warning host-callout">${UI().icon('alert')}<div><strong>${pending} written answer${pending === 1 ? '' : 's'} to mark</strong>Open a score to mark them. Totals update as you go.</div></div>` : ''}
                         ${attempts.length ? `
@@ -665,7 +818,7 @@
                                     ${live.map(a => row(a, 0)).join('')}
                                 </tbody>
                             </table>
-                        </div>` : UI().emptyState('award', 'No scores yet', 'Scores appear here as soon as someone submits the quiz.')}
+                        </div>` : UI().emptyState('award', 'No scores yet', `Scores appear here as soon as someone submits the quiz${cloud ? '. This page updates by itself' : ''}.`)}
                     </section>
                 </div>
             `;
@@ -675,37 +828,38 @@
                 tr.addEventListener('click', () => open(tr));
                 tr.addEventListener('keydown', e => { if (e.key === 'Enter') open(tr); });
             });
-            $('hs-copy').addEventListener('click', async () => {
-                try {
-                    await navigator.clipboard.writeText(session.code);
-                    Toast().show(`Copied ${session.code}.`, 'success');
-                } catch (e) {
-                    const range = document.createRange();
-                    range.selectNodeContents($('hs-code'));
-                    const sel = window.getSelection();
-                    sel.removeAllRanges();
-                    sel.addRange(range);
-                    Toast().show('Press Ctrl+C to copy the code.', 'info');
-                }
-            });
+            $('hs-copy').addEventListener('click', () => copyText(session.code, 'the code'));
+            if ($('hs-copy-link')) $('hs-copy-link').addEventListener('click', () => copyText(link, 'the link'));
             $('hs-take').addEventListener('click', e => { if (!session.open) e.preventDefault(); });
-            $('hs-toggle').addEventListener('click', () => {
-                Host().setOpen(session.id, !session.open);
-                Toast().show(session.open ? 'Quiz closed. No new attempts can start.' : 'Quiz reopened.', 'info');
-                this.render(container, id);
+            if ($('hs-refresh')) $('hs-refresh').addEventListener('click', () => this.reload(container, session.id, token, false));
+            if ($('hs-csv')) $('hs-csv').addEventListener('click', () => downloadCsv(session, attempts));
+            $('hs-toggle').addEventListener('click', async () => {
+                const btn = $('hs-toggle');
+                btn.disabled = true;
+                try {
+                    await Hosting().setOpen(session.id, !session.open);
+                    Toast().show(session.open ? 'Quiz closed. No new attempts can start.' : 'Quiz reopened.', 'info');
+                    if (token === renderToken) this.reload(container, session.id, token, true);
+                } catch (err) {
+                    Toast().show(err.message, 'danger');
+                    btn.disabled = false;
+                }
             });
             $('hs-delete').addEventListener('click', async () => {
                 const ok = await window.QuizBowl.Components.Modal.confirm({
                     title: 'Delete this hosted quiz?',
-                    message: `"${session.title}" and all ${attempts.length} score${attempts.length === 1 ? '' : 's'} will be deleted. The questions in your quiz aren't affected.`,
+                    message: `"${session.title}" and all ${attempts.length} score${attempts.length === 1 ? '' : 's'} will be deleted, and its code will stop working. The questions in your quiz aren't affected.`,
                     confirmText: 'Delete', danger: true
                 });
                 if (!ok) return;
-                Host().deleteSession(session.id);
-                Toast().show('Hosted quiz deleted.', 'info');
-                window.QuizBowl.Router.navigate('host');
+                try {
+                    await Hosting().deleteSession(session.id);
+                    Toast().show('Hosted quiz deleted.', 'info');
+                    window.QuizBowl.Router.navigate('host');
+                } catch (err) {
+                    Toast().show(err.message, 'danger');
+                }
             });
-            if ($('hs-csv')) $('hs-csv').addEventListener('click', () => downloadCsv(session));
         }
     };
 
@@ -713,15 +867,26 @@
     // #host-attempt/ID: one person's answers, with marking
     // =====================================================================
     window.QuizBowl.Views.HostAttempt = {
-        render: function(container, id) {
-            const attempt = Host().getAttempt(id);
-            const session = attempt && Host().getSession(attempt.sessionId);
+        render: async function(container, id) {
+            stopRefresh();
+            const token = ++renderToken;
+            loading(container, 'Loading answers…');
+            let attempt, session;
+            try {
+                attempt = await Hosting().getAttempt(id);
+                session = attempt ? await Hosting().getSession(attempt.sessionId) : null;
+            } catch (err) {
+                if (token !== renderToken) return;
+                return failed(container, err, () => this.render(container, id));
+            }
+            if (token !== renderToken) return;
             if (!attempt || !session) {
                 container.innerHTML = `<div class="card">${UI().emptyState('inbox', 'Score not found', 'It may have been deleted.',
                     `<a href="#host" class="btn btn-primary">Hosted quizzes</a>`)}</div>`;
                 return;
             }
-            const map = Host().questionMap(session);
+            const map = {};
+            (session.questions || []).forEach(q => { map[q.id] = q; });
             const submitted = attempt.status === 'submitted';
             const Review = window.QuizBowl.Views.Take;
 
@@ -755,7 +920,7 @@
                             ${attempt.order.map((qid, i) => {
                                 const q = map[qid];
                                 if (!q) return '';
-                                const r = submitted ? attempt.results[qid] : null;
+                                const r = submitted ? (attempt.results || {})[qid] : null;
                                 return Review.reviewItem(q, attempt, i, r, submitted ? `
                                     <form class="host-mark" data-qid="${esc(qid)}">
                                         <label>Marks
@@ -773,19 +938,33 @@
 
             if (window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise([container]).catch(() => {});
 
+            const keepScroll = async fn => {
+                const scrollTop = document.getElementById('view-container').scrollTop;
+                await fn();
+                if (token === renderToken) {
+                    await this.render(container, id);
+                    document.getElementById('view-container').scrollTop = scrollTop;
+                }
+            };
             container.querySelectorAll('.host-mark').forEach(form => form.addEventListener('submit', e => {
                 e.preventDefault();
-                try {
-                    Host().setMark(attempt.id, form.getAttribute('data-qid'), form.querySelector('input').value);
-                    Toast().show('Mark saved.', 'success');
-                    this.render(container, id);
-                } catch (err) {
-                    Toast().show(err.message, 'danger');
-                }
+                const btn = form.querySelector('button[type="submit"]');
+                btn.disabled = true;
+                keepScroll(async () => {
+                    try {
+                        await Hosting().setMark(attempt.id, form.getAttribute('data-qid'), form.querySelector('input').value);
+                        Toast().show('Mark saved.', 'success');
+                    } catch (err) {
+                        Toast().show(err.message, 'danger');
+                    }
+                });
             }));
             container.querySelectorAll('[data-clear]').forEach(btn => btn.addEventListener('click', () => {
-                Host().clearMark(attempt.id, btn.getAttribute('data-clear'));
-                this.render(container, id);
+                btn.disabled = true;
+                keepScroll(async () => {
+                    try { await Hosting().clearMark(attempt.id, btn.getAttribute('data-clear')); }
+                    catch (err) { Toast().show(err.message, 'danger'); }
+                });
             }));
             $('ha-delete').addEventListener('click', async () => {
                 const ok = await window.QuizBowl.Components.Modal.confirm({
@@ -794,12 +973,33 @@
                     confirmText: 'Delete', danger: true
                 });
                 if (!ok) return;
-                Host().deleteAttempt(attempt.id);
-                Toast().show('Score deleted.', 'info');
-                window.QuizBowl.Router.navigate('host-session/' + encodeURIComponent(session.id));
+                try {
+                    await Hosting().deleteAttempt(attempt.id);
+                    Toast().show('Score deleted.', 'info');
+                    window.QuizBowl.Router.navigate('host-session/' + encodeURIComponent(session.id));
+                } catch (err) {
+                    Toast().show(err.message, 'danger');
+                }
             });
         }
     };
 
     window.QuizBowl.Views.HostUtils = { formatDuration, percent, ENDED };
+
+    // Stop refreshing scores once the scores page is left
+    window.addEventListener('hashchange', () => {
+        if (!/^#\/?host-session\//.test(location.hash)) stopRefresh();
+    });
+
+    // Account changes (sign-in finishing, signing out): redraw hosting pages that depend on it
+    if (window.QuizBowl.Cloud) {
+        window.QuizBowl.Cloud.subscribe(event => {
+            if (event.type !== 'ready' && !(event.type === 'auth' && /SIGNED_(IN|OUT)/.test(event.event || ''))) return;
+            setTimeout(() => {
+                const route = window.QuizBowl.State.currentRoute;
+                if (route === 'host') window.QuizBowl.Views.Host.render(document.getElementById('view-container'));
+                else if (route === 'host-new' && $('hn-summary')) window.QuizBowl.Views.HostNew.renderSummary();
+            }, 0);
+        });
+    }
 })();

@@ -318,3 +318,21 @@ textarea.take-text { min-height: 120px; }
     .take-review-answers div { grid-template-columns: 1fr; gap: 0; }
     .take-review-marks { margin-left: 0; width: 100%; }
 }
+
+/* ---------- Sharing ---------- */
+.host-loading { display: flex; align-items: center; justify-content: center; gap: 0.5rem; color: var(--text-muted); }
+.host-callout-btn { margin-top: var(--spacing-sm); }
+.host-callout .host-callout-btn { display: inline-flex; }
+.host-link {
+    max-width: 100%;
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    user-select: all;
+}
+.host-score-actions { display: flex; flex-wrap: wrap; gap: var(--spacing-sm); }
+.take-code-inline { font-family: var(--font-mono); letter-spacing: 0.12em; color: var(--text-primary); }
+.take-view.is-busy .take-q-footer .btn, .take-view.is-busy #take-end { opacity: 0.6; pointer-events: none; }

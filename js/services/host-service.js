@@ -4,10 +4,12 @@
  * people take the quiz one question at a time against a timer. Attempts are
  * marked automatically and kept as scores for the host.
  *
- * Everything lives on this device for now (app-wide storage keys, not tied
- * to the active quiz). Sessions keep a frozen copy of their questions, so
- * later edits in the question bank never change how an attempt is marked,
- * and so a session can later move to the cloud as one self-contained record.
+ * This is the on-device version, used when the site has no cloud accounts
+ * (app-wide storage keys, not tied to the active quiz). With accounts, hosted
+ * quizzes live in the cloud instead (js/cloud/host-cloud.js), and both are
+ * reached through js/services/hosting.js. The rules here match the cloud's
+ * (supabase/schema.sql). Sessions keep a frozen copy of their questions, so
+ * later edits in the question bank never change how an attempt is marked.
  *
  * Session: { id, code, title, quizId, quizName, createdAt, open, settings, questions: [snapshot] }
  *   settings: { timerMode: 'question'|'total', times: { mcq, true_false, theory, calculation } (seconds),
@@ -351,8 +353,10 @@
         },
 
         /**
-         * Apply the clock: per question, an expired question closes and the next opens;
-         * in total-time mode, running out of time submits. Returns { attempt, changed }.
+         * Apply the clock. Per question: each expired question closes and the next opens
+         * with its own time, counted from when the previous one closed (so time keeps
+         * running while someone is away). Total time: submit when time is up.
+         * Returns { attempt, changed }.
          */
         checkTime(attemptId, now = Date.now()) {
             const attempt = this.getAttempt(attemptId);
@@ -363,8 +367,18 @@
                 if (now >= attempt.deadline) return { attempt: this.submit(attemptId, 'timeout', attempt.deadline), changed: 'timeout' };
                 return { attempt, changed: false };
             }
-            if (now >= attempt.questionDeadline) return { attempt: this.nextQuestion(attemptId), changed: 'question' };
-            return { attempt, changed: false };
+            if (now < attempt.questionDeadline) return { attempt, changed: false };
+            const map = questionMap(session);
+            let current = attempt.current, deadline = attempt.questionDeadline;
+            while (now >= deadline) {
+                if (current >= attempt.order.length - 1) return { attempt: this.submit(attemptId, 'finished', deadline), changed: 'finished' };
+                current += 1;
+                deadline += questionTime(session, map[attempt.order[current]]) * 1000;
+            }
+            return {
+                attempt: this._update(attemptId, a => { a.current = current; a.view = current; a.questionDeadline = deadline; }),
+                changed: 'question'
+            };
         },
 
         submit(attemptId, endedBy = 'finished', at = Date.now()) {
@@ -419,5 +433,5 @@
         _buildOrder: buildOrder
     };
 
-    window.QuizBowl.Services.HostService = Service;
+    window.QuizBowl.Services.HostLocal = Service;
 })();

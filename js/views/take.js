@@ -10,24 +10,30 @@
  *  - total time: one countdown; answers can be changed anywhere until the
  *    quiz is submitted or the time runs out (then it submits itself).
  *
- * The clock is based on saved deadlines, so refreshing or leaving the page
- * doesn't pause it; coming back resumes the same attempt.
+ * The quiz may live in the cloud or on this device (see services/hosting.js).
+ * Either way the clock is based on saved deadlines (the server's clock for
+ * cloud quizzes), so refreshing or leaving doesn't pause it, and coming back
+ * resumes the same attempt.
  */
 (function() {
-    const RETURN_KEY = 'quizr_take_return';       // code to come back to after signing in
-    const LOCAL_KEY = 'quizr_take_attempt_';      // + session id: this tab's attempt when accounts aren't set up
+    const RETURN_KEY = 'quizr_take_return';       // { code, at }: quiz to come back to after signing in
+    const LOCAL_KEY = 'quizr_take_attempt_';      // + code: this tab's on-device attempt when there are no accounts
     const LETTERS = 'ABCDEFGHIJ';
+    const SAVE_DELAY = 700;                       // ms after typing stops before a written answer is saved
 
     const UI = () => window.QuizBowl.Utils.UI;
-    const Host = () => window.QuizBowl.Services.HostService;
+    const Hosting = () => window.QuizBowl.Services.Hosting;
     const Toast = () => window.QuizBowl.Components.Toast;
     const Modal = () => window.QuizBowl.Components.Modal;
     const Cloud = () => window.QuizBowl.Cloud;
     const esc = v => UI().escapeHtml(v);
+    const safe = v => UI().safeHtml(v);
     const $ = id => document.getElementById(id);
+    const cleanCode = code => String(code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 
     let ticker = null;
-    let busy = false;          // a confirm dialog is open or an action is running
+    let renderToken = 0;       // increases on every page render; stale async work checks it
+    let busy = false;          // a confirm dialog is open
     let retake = false;        // the person chose "Take it again" on their result
 
     function stopTicker() {
@@ -42,14 +48,15 @@
     }
 
     function typeset(el) {
-        if (window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise([el]).catch(() => {});
+        if (el && window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise([el]).catch(() => {});
     }
 
-    function sessionLocal(key, value) {
+    function store(kind, key, value) {
         try {
-            if (value === undefined) return sessionStorage.getItem(key);
-            if (value === null) sessionStorage.removeItem(key);
-            else sessionStorage.setItem(key, value);
+            const s = kind === 'local' ? window.localStorage : window.sessionStorage;
+            if (value === undefined) return s.getItem(key);
+            if (value === null) s.removeItem(key);
+            else s.setItem(key, value);
         } catch (e) { return null; }
         return null;
     }
@@ -65,20 +72,9 @@
         return { mode: 'user', userId: user.id, email: user.email || '', suggestedName: meta.full_name || meta.name || '' };
     }
 
-    function findAttempt(session, who) {
-        if (who.mode === 'user') return Host().latestAttempt(session.id, { userId: who.userId });
-        const id = sessionLocal(LOCAL_KEY + session.id);
-        const attempt = id && Host().getAttempt(id);
-        return attempt && attempt.sessionId === session.id ? attempt : null;
-    }
-
+    const isAnswered = v => v != null && String(v).trim() !== '';
     const optionText = (q, key) => (q.options || {})[key] == null ? '' : q.options[key];
-
-    function displayLetter(attempt, q, key) {
-        const order = (attempt.optionOrder && attempt.optionOrder[q.id]) || Object.keys(q.options || {}).sort();
-        const i = order.indexOf(key);
-        return i === -1 ? key : LETTERS[i];
-    }
+    const optionKeys = (attempt, q) => (attempt.optionOrder && attempt.optionOrder[q.id]) || Object.keys(q.options || {}).sort();
 
     const STATUS_BADGES = {
         correct: '<span class="badge badge-correct">Correct</span>',
@@ -88,6 +84,10 @@
         marked: '<span class="badge badge-partial">Marked by host</span>'
     };
 
+    function errorCard(icon, title, message, actions = `<a href="#take" class="btn btn-primary">Enter another code</a>`) {
+        return `<div class="card take-card">${UI().emptyState(icon, esc(title), message, actions)}</div>`;
+    }
+
     const View = {
         // One question in a review list (used by the result screen and the host's marking page)
         reviewItem: function(q, attempt, index, result, extraHtml = '') {
@@ -95,23 +95,22 @@
             const status = result ? result.status : null;
             let answerHtml;
             if (q.type === 'mcq') {
-                const order = (attempt.optionOrder && attempt.optionOrder[q.id]) || Object.keys(q.options || {}).sort();
-                answerHtml = `<ul class="take-review-options">${order.map((key, i) => {
+                answerHtml = `<ul class="take-review-options">${optionKeys(attempt, q).map((key, i) => {
                     const chosen = given === key, right = q.correctAnswer === key;
                     return `<li class="${right ? 'is-right' : ''} ${chosen && !right ? 'is-wrong' : ''}">
-                        <span class="take-letter">${LETTERS[i]}</span><span>${optionText(q, key)}</span>
+                        <span class="take-letter">${LETTERS[i]}</span><span>${safe(optionText(q, key))}</span>
                         ${chosen ? `<em>${right ? UI().icon('check') : UI().icon('x')} Chosen</em>` : right ? `<em>${UI().icon('check')} Correct answer</em>` : ''}
                     </li>`;
                 }).join('')}</ul>`;
             } else if (q.type === 'true_false') {
                 answerHtml = `<dl class="take-review-answers">
-                    <div><dt>Answer given</dt><dd>${given ? esc(given) : '<span class="text-muted">No answer</span>'}</dd></div>
+                    <div><dt>Answer given</dt><dd>${isAnswered(given) ? esc(given) : '<span class="text-muted">No answer</span>'}</dd></div>
                     <div><dt>Correct answer</dt><dd>${esc(q.correctAnswer)}</dd></div>
                 </dl>`;
             } else {
                 answerHtml = `<dl class="take-review-answers">
-                    <div><dt>Answer given</dt><dd class="take-written">${given ? esc(given) : '<span class="text-muted">No answer</span>'}</dd></div>
-                    <div><dt>Expected answer</dt><dd>${q.expectedAnswer || '<span class="text-muted">Not set</span>'}${q.unit ? ' ' + esc(q.unit) : ''}</dd></div>
+                    <div><dt>Answer given</dt><dd class="take-written">${isAnswered(given) ? esc(given) : '<span class="text-muted">No answer</span>'}</dd></div>
+                    <div><dt>Expected answer</dt><dd>${q.expectedAnswer ? safe(q.expectedAnswer) : '<span class="text-muted">Not set</span>'}${q.unit ? ' ' + esc(q.unit) : ''}</dd></div>
                 </dl>`;
             }
             return `
@@ -122,31 +121,25 @@
                         <span class="text-muted">${esc(q.category)}</span>
                         <span class="take-review-marks">${status ? STATUS_BADGES[status] || '' : ''} ${result ? `<strong>${result.awarded}</strong> / ${result.marks}` : `${q.marks} mark${q.marks == 1 ? '' : 's'}`}</span>
                     </div>
-                    <div class="take-review-q">${q.question}</div>
+                    <div class="take-review-q">${safe(q.question)}</div>
                     ${answerHtml}
-                    ${q.explanation ? `<p class="take-review-expl">${UI().icon('info')} <span>${q.explanation}</span></p>` : ''}
+                    ${q.explanation ? `<p class="take-review-expl">${UI().icon('info')} <span>${safe(q.explanation)}</span></p>` : ''}
                     ${extraHtml}
                 </li>`;
         },
 
-        render: function(container, code) {
+        render: async function(container, code) {
             stopTicker();
             busy = false;
             const wantRetake = retake;   // only for the render right after "Take it again"
             retake = false;
+            const token = ++renderToken;
             this.container = container;
             this.stage = '';
-            this.code = code ? String(code).toUpperCase().replace(/[^A-Z0-9]/g, '') : '';
+            this.st = null;
+            this.acting = false;
+            this.code = cleanCode(code);
             if (!this.code) return this.renderCodeEntry();
-
-            const session = Host().getSessionByCode(this.code);
-            if (!session) {
-                container.innerHTML = `<div class="card take-card">${UI().emptyState('alert', 'Quiz not found',
-                    `There's no quiz with the code <strong>${esc(this.code)}</strong> on this device. Check the code and try again.`,
-                    `<a href="#take" class="btn btn-primary">Enter another code</a>`)}</div>`;
-                return;
-            }
-            this.session = session;
 
             const who = identity();
             this.who = who;
@@ -157,20 +150,31 @@
             }
             if (who.mode === 'signin') return this.renderSignIn();
 
-            let attempt = findAttempt(session, who);
-            if (attempt && attempt.status === 'in_progress') {
-                attempt = Host().checkTime(attempt.id).attempt;
-                if (attempt.status === 'in_progress') return this.renderRunner(attempt.id);
-            }
-            if (attempt && attempt.status === 'submitted' && !(wantRetake && session.settings.allowRetake)) {
-                return this.renderResult(attempt.id);
-            }
-            if (!session.open) {
-                container.innerHTML = `<div class="card take-card">${UI().emptyState('lock', 'This quiz is closed',
-                    `<strong>${esc(session.title)}</strong> isn't taking new attempts.`, `<a href="#host" class="btn btn-secondary">Back</a>`)}</div>`;
+            container.innerHTML = `<div class="card take-card take-loading">${UI().icon('loader', 'spin')} Opening the quiz…</div>`;
+            let joined;
+            try {
+                joined = await Hosting().join(this.code, { userId: who.userId, localAttemptId: store('session', LOCAL_KEY + this.code) });
+            } catch (err) {
+                if (token !== renderToken) return;
+                const notFound = /no quiz with that code/i.test(err.message);
+                container.innerHTML = errorCard(notFound ? 'alert' : 'cloud', notFound ? 'Quiz not found' : 'Couldn\'t open the quiz',
+                    notFound ? `There's no quiz with the code <strong>${esc(this.code)}</strong>. Check the code and try again.` : esc(err.message),
+                    notFound ? undefined : `<button type="button" class="btn btn-primary" id="take-retry">Try again</button>`);
+                const retry = $('take-retry');
+                if (retry) retry.addEventListener('click', () => this.render(container, this.code));
                 return;
             }
-            this.renderIntro(attempt);
+            if (token !== renderToken) return;
+            this.source = joined.source;
+            this.session = joined.session;
+            const latest = joined.latest;
+            if (latest && latest.attempt.status === 'in_progress') return this.renderRunner(latest, true);
+            if (latest && latest.attempt.status === 'submitted' && !(wantRetake && this.session.settings.allowRetake)) return this.renderResult(latest);
+            if (!this.session.open) {
+                container.innerHTML = errorCard('lock', 'This quiz is closed', `<strong>${esc(this.session.title)}</strong> isn't taking new attempts.`, '<a href="#dashboard" class="btn btn-secondary">Back</a>');
+                return;
+            }
+            this.renderIntro(latest);
         },
 
         renderCodeEntry: function() {
@@ -187,30 +191,28 @@
             $('take-code').focus();
             $('take-code-form').addEventListener('submit', e => {
                 e.preventDefault();
-                const code = $('take-code').value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+                const code = cleanCode($('take-code').value);
                 if (code) window.QuizBowl.Router.navigate('take/' + code);
             });
         },
 
         renderSignIn: function() {
-            const s = this.session;
             this.stage = 'signin';
             this.container.innerHTML = `
                 <div class="card take-card">
                     <span class="stat-icon accent take-big-icon">${UI().icon('user')}</span>
-                    <h1>${esc(s.title)}</h1>
-                    <p>Sign in to your Quizr account to take this quiz. Your score is saved with your account.</p>
+                    <h1>Sign in to take this quiz</h1>
+                    <p>Quiz code <strong class="take-code-inline">${esc(this.code)}</strong>. Your score is saved with your Quizr account, so the host knows it's yours.</p>
                     <a href="#account" class="btn btn-primary btn-lg btn-block" id="take-signin">${UI().icon('user')} Sign in or create an account</a>
-                    <p class="form-hint">You'll come back here after signing in.</p>
+                    <p class="form-hint">You'll come back to the quiz after signing in.</p>
                 </div>`;
-            $('take-signin').addEventListener('click', () => sessionLocal(RETURN_KEY, this.code));
+            $('take-signin').addEventListener('click', () => store('local', RETURN_KEY, JSON.stringify({ code: this.code, at: Date.now() })));
         },
 
         renderIntro: function(previous) {
             const s = this.session, st = s.settings, who = this.who;
             const HostUtils = window.QuizBowl.Views.HostUtils;
-            const marks = Host().totalMarks(s);
-            const name = (previous && previous.name) || who.suggestedName || '';
+            const name = (previous && previous.attempt.name) || who.suggestedName || '';
             const rules = st.timerMode === 'total'
                 ? [`You have <strong>${HostUtils.formatDuration(st.totalSeconds)}</strong> for the whole quiz. The clock starts when you press Start and keeps running if you leave this page.`,
                    'Move between questions freely and change any answer until you submit.',
@@ -225,8 +227,8 @@
                     <span class="stat-icon accent take-big-icon">${UI().icon('award')}</span>
                     <h1>${esc(s.title)}</h1>
                     <div class="take-intro-facts">
-                        <span><strong>${s.questions.length}</strong> question${s.questions.length === 1 ? '' : 's'}</span>
-                        <span><strong>${marks}</strong> mark${marks === 1 ? '' : 's'}</span>
+                        <span><strong>${s.questionCount}</strong> question${s.questionCount === 1 ? '' : 's'}</span>
+                        <span><strong>${s.totalMarks}</strong> mark${s.totalMarks === 1 ? '' : 's'}</span>
                         <span><strong>${st.timerMode === 'total' ? HostUtils.formatDuration(st.totalSeconds) : 'Timed'}</strong> ${st.timerMode === 'total' ? 'in total' : 'per question'}</span>
                     </div>
                     <ul class="take-rules">${rules.map(r => `<li>${UI().icon('check')}<span>${r}</span></li>`).join('')}</ul>
@@ -237,44 +239,148 @@
                             ${who.mode === 'user' ? `<small class="form-hint">Saved with your account ${esc(who.email)}.</small>`
                                 : '<small class="form-hint">Accounts aren\'t set up on this site, so only your name is saved with your score.</small>'}
                         </div>
-                        <button type="submit" class="btn btn-primary btn-lg btn-block">${UI().icon('play')} Start quiz</button>
+                        <button type="submit" class="btn btn-primary btn-lg btn-block" id="take-start">${UI().icon('play')} Start quiz</button>
                     </form>
                 </div>`;
             const input = $('take-name');
             if (!name) input.focus();
-            $('take-start-form').addEventListener('submit', e => {
+            $('take-start-form').addEventListener('submit', async e => {
                 e.preventDefault();
+                const token = renderToken;
                 // The account may have changed in another tab since this page was drawn
                 const current = identity();
                 if (current.mode !== who.mode || current.userId !== who.userId) return this.render(this.container, this.code);
-                const fresh = Host().getSession(s.id);
-                if (!fresh || !fresh.open) { Toast().show('This quiz is closed.', 'danger'); return this.render(this.container, this.code); }
-                // Starting twice (another tab) resumes the attempt already running
-                const running = findAttempt(fresh, who);
-                if (running && running.status === 'in_progress') return this.render(this.container, this.code);
+                if (!input.value.trim()) { input.focus(); return; }
+                const btn = $('take-start');
+                btn.disabled = true;
+                btn.innerHTML = `${UI().icon('loader', 'spin')} Starting…`;
                 try {
-                    const attempt = Host().startAttempt(fresh, { name: input.value, userId: who.userId || null, email: who.email || '' });
-                    if (who.mode !== 'user') sessionLocal(LOCAL_KEY + s.id, attempt.id);
-                    this.session = fresh;
-                    this.renderRunner(attempt.id);
+                    const state = await this.call(() => Hosting().start(this.source, this.code, input.value, { userId: who.userId, email: who.email }));
+                    if (token !== renderToken) return;
+                    if (state.source === 'local' && who.mode !== 'user') store('session', LOCAL_KEY + this.code, state.attempt.id);
+                    this.renderRunner(state);
                 } catch (err) {
+                    if (token !== renderToken) return;
                     Toast().show(err.message, 'danger');
-                    input.focus();
+                    if (/closed|already taken/i.test(err.message)) return this.render(this.container, this.code);
+                    btn.disabled = false;
+                    btn.innerHTML = `${UI().icon('play')} Start quiz`;
                 }
             });
         },
 
+        // ---------------- talking to the quiz ----------------
+        // Run a request and keep the clock in step with the server's
+        call: async function(fn) {
+            const sent = Date.now();
+            const result = await fn();
+            const got = Date.now();
+            const s = result && result.state ? result.state : result;
+            if (s && s.serverNow) this.offset = s.serverNow - Math.round((sent + got) / 2);
+            return result;
+        },
+
+        now: function() {
+            return Date.now() + (this.offset || 0);
+        },
+
+        // Take in a new state; returns what changed: 'new', 'question', 'submitted' or 'none'
+        apply: function(state) {
+            const before = this.st && this.st.attempt;
+            this.st = state;
+            this.session = state.session;
+            const a = state.attempt;
+            if (!before) { this.viewIndex = a.view || 0; return 'new'; }
+            if (a.status !== 'in_progress') return before.status === 'in_progress' ? 'submitted' : 'none';
+            if (a.current !== before.current) { this.viewIndex = a.current; return 'question'; }
+            return 'none';
+        },
+
+        // Saves go out one at a time, in order
+        save: function(questionId, value) {
+            const attemptId = this.st.attempt.id, source = this.source, token = renderToken;
+            this.pendingSaves = (this.pendingSaves || 0) + 1;
+            this.saving = (this.saving || Promise.resolve()).then(async () => {
+                try {
+                    const result = await this.call(() => Hosting().answer(source, attemptId, questionId, value));
+                    this.pendingSaves--;
+                    if (token !== renderToken) return;
+                    // Keep answers chosen on screen since this save was sent
+                    if (this.pendingSaves > 0 && result.state.attempt.status === 'in_progress') {
+                        result.state.attempt.answers = { ...result.state.attempt.answers, ...this.st.attempt.answers };
+                    }
+                    const change = this.apply(result.state);
+                    if (!result.saved) Toast().show('That question had already closed, so the answer wasn\'t saved.', 'warning');
+                    this.afterChange(change, !result.saved);
+                } catch (err) {
+                    this.pendingSaves--;
+                    if (token === renderToken) Toast().show(`Your answer wasn't saved: ${err.message}`, 'danger');
+                }
+            });
+            return this.saving;
+        },
+
+        flushText: function() {
+            clearTimeout(this.textTimer);
+            const pending = this.pendingText;
+            this.pendingText = null;
+            if (pending && this.st) {
+                this.st.attempt.answers[pending.questionId] = pending.value;
+                this.save(pending.questionId, pending.value);
+            }
+            return this.saving || Promise.resolve();
+        },
+
+        // React to a state change from the server or the clock
+        afterChange: function(change, forceRedraw = false) {
+            if (!$('take-root')) return;
+            if (change === 'submitted') {
+                stopTicker();
+                if (this.st.attempt.endedBy === 'timeout') Toast().show('Time\'s up! Your answers have been submitted.', 'info');
+                return this.renderResult(this.st);
+            }
+            if (change === 'question') {
+                Toast().show(`Time's up for question ${this.st.attempt.current}. Here's the next one.`, 'info');
+                return this.renderQuestion();
+            }
+            if (forceRedraw) return this.renderQuestion();
+            this.renderNav();
+        },
+
+        refresh: async function() {
+            if (this.refreshing || !this.st) return;
+            this.refreshing = true;
+            const token = renderToken;
+            try {
+                await this.flushText();
+                const state = await this.call(() => Hosting().state(this.source, this.st.attempt.id));
+                if (token !== renderToken) return;
+                this.afterChange(this.apply(state));
+            } catch (err) {
+                if (token === renderToken) Toast().show(err.message, 'danger');
+            } finally {
+                this.refreshing = false;
+                this.nextRefresh = Date.now() + 1500;
+            }
+        },
+
         // ---------------- the quiz itself ----------------
-        renderRunner: function(attemptId) {
-            this.attemptId = attemptId;
-            const attempt = Host().getAttempt(attemptId);
-            const s = this.session;
+        renderRunner: function(state, resumed = false) {
+            this.st = null;
+            this.pendingText = null;
+            this.pendingSaves = 0;
+            this.saving = null;
+            this.nextRefresh = 0;
+            this.acting = false;
+            if (resumed || this.offset == null) this.offset = state.serverNow - Date.now();
+            this.apply(state);
+            const s = this.session, a = state.attempt;
             this.container.innerHTML = `
                 <div class="take-view" id="take-root">
                     <header class="take-bar">
                         <div class="take-bar-title">
                             <strong>${esc(s.title)}</strong>
-                            <small>${esc(attempt.name)}${attempt.email ? ' · ' + esc(attempt.email) : ''}</small>
+                            <small>${esc(a.name)}${a.email ? ' · ' + esc(a.email) : ''}</small>
                         </div>
                         <div class="take-timer" id="take-timer" role="timer" aria-live="off">
                             ${UI().icon('timer')}<span class="take-timer-label" id="take-timer-label"></span><span class="take-timer-value" id="take-timer-value">0:00</span>
@@ -297,50 +403,69 @@
             ticker = setInterval(() => this.tick(), 250);
         },
 
+        perQuestion: function() {
+            return this.session.settings.timerMode !== 'total';
+        },
+
+        viewing: function() {
+            const a = this.st.attempt;
+            const last = a.order.length - 1;
+            return Math.max(0, Math.min(this.perQuestion() ? a.current : last, this.viewIndex || 0));
+        },
+
+        answerFor: function(questionId) {
+            if (this.pendingText && this.pendingText.questionId === questionId) return this.pendingText.value;
+            return this.st.attempt.answers[questionId];
+        },
+
         renderQuestion: function() {
-            const s = this.session, st = s.settings;
-            const attempt = Host().getAttempt(this.attemptId);
-            if (!attempt || attempt.status !== 'in_progress') return this.renderResult(this.attemptId);
-            const map = Host().questionMap(s);
-            const perQuestion = st.timerMode === 'question';
-            const n = attempt.order.length;
-            const index = perQuestion ? Math.min(attempt.view, attempt.current) : attempt.view;
-            const q = map[attempt.order[index]];
-            const editable = Host().canAnswer(s, attempt, index);
-            const given = attempt.answers[q.id];
-            const isLast = perQuestion ? attempt.current === n - 1 : index === n - 1;
+            if (!$('take-root')) return;
+            const a = this.st.attempt;
+            if (a.status !== 'in_progress') return this.renderResult(this.st);
+            const perQuestion = this.perQuestion();
+            const n = a.order.length;
+            const index = this.viewing();
+            const q = this.st.questions[a.order[index]];
+            if (!q) {
+                $('take-question').innerHTML = `<p class="take-loading">${UI().icon('loader', 'spin')} Loading the question…</p>`;
+                this.refresh();
+                return;
+            }
+            const editable = !perQuestion || index === a.current;
+            const given = this.answerFor(q.id);
+            const isLast = perQuestion ? a.current === n - 1 : index === n - 1;
 
             let answerHtml;
             if (q.type === 'mcq' || q.type === 'true_false') {
-                const keys = q.type === 'mcq' ? (attempt.optionOrder[q.id] || Object.keys(q.options || {}).sort()) : ['True', 'False'];
+                const keys = q.type === 'mcq' ? optionKeys(a, q) : ['True', 'False'];
                 answerHtml = `<div class="take-options ${q.type === 'true_false' ? 'is-tf' : ''}" role="radiogroup" aria-label="Answer">
                     ${keys.map((key, i) => `
                         <button type="button" class="take-option ${given === key ? 'is-chosen' : ''}" role="radio" aria-checked="${given === key}" data-answer="${esc(key)}" ${editable ? '' : 'disabled'}>
                             <span class="take-letter">${q.type === 'mcq' ? LETTERS[i] : key.charAt(0)}</span>
-                            <span class="take-option-text">${q.type === 'mcq' ? optionText(q, key) : key}</span>
+                            <span class="take-option-text">${q.type === 'mcq' ? safe(optionText(q, key)) : key}</span>
                         </button>`).join('')}
                 </div>`;
             } else if (q.type === 'theory') {
                 answerHtml = `<label class="take-written-label" for="take-text">Your answer</label>
-                    <textarea id="take-text" class="form-control take-text" rows="4" maxlength="5000" ${editable ? '' : 'disabled'} placeholder="Type your answer">${esc(given || '')}</textarea>`;
+                    <textarea id="take-text" class="form-control take-text" rows="4" maxlength="5000" ${editable ? '' : 'disabled'} placeholder="Type your answer" data-question="${esc(q.id)}">${esc(given || '')}</textarea>`;
             } else {
                 answerHtml = `<label class="take-written-label" for="take-text">Your answer</label>
                     <div class="take-calc">
-                        <input type="text" id="take-text" class="form-control take-text" inputmode="decimal" maxlength="200" ${editable ? '' : 'disabled'} value="${esc(given || '')}" placeholder="e.g. 42">
+                        <input type="text" id="take-text" class="form-control take-text" inputmode="decimal" maxlength="200" ${editable ? '' : 'disabled'} value="${esc(given || '')}" placeholder="e.g. 42" data-question="${esc(q.id)}">
                         ${q.unit ? `<span class="take-unit">${esc(q.unit)}</span>` : ''}
                     </div>
-                    <small class="form-hint">Give the number${q.unit ? ` in ${esc(q.unit)}` : ''}. Round it the same way as the question asks.</small>`;
+                    <small class="form-hint">Give the number${q.unit ? ` in ${esc(q.unit)}` : ''}. Round it the way the question asks.</small>`;
             }
 
             let footer;
-            if (perQuestion && index < attempt.current) {
+            if (perQuestion && index < a.current) {
                 footer = `
                     <button type="button" class="btn btn-secondary" data-go="${index - 1}" ${index === 0 ? 'disabled' : ''}>${UI().icon('back')} Previous</button>
-                    <button type="button" class="btn btn-primary" data-go="${attempt.current}">Back to question ${attempt.current + 1}</button>`;
+                    <button type="button" class="btn btn-primary" data-go="${a.current}">Back to question ${a.current + 1}</button>`;
             } else if (perQuestion) {
                 footer = `
                     <button type="button" class="btn btn-secondary" data-go="${index - 1}" ${index === 0 ? 'disabled' : ''}>${UI().icon('back')} Previous</button>
-                    <button type="button" class="btn btn-primary" id="take-next">${isLast ? `${UI().icon('check')} Finish` : 'Next question'} </button>`;
+                    <button type="button" class="btn btn-primary" id="take-next">${isLast ? `${UI().icon('check')} Finish` : 'Next question'}</button>`;
             } else {
                 footer = `
                     <button type="button" class="btn btn-secondary" data-go="${index - 1}" ${index === 0 ? 'disabled' : ''}>${UI().icon('back')} Previous</button>
@@ -350,68 +475,59 @@
             }
 
             $('take-question').innerHTML = `
-                ${perQuestion && index < attempt.current ? `<div class="callout callout-info take-preview">${UI().icon('lock')}<div><strong>Preview only</strong>This question has closed, so its answer can't be changed.</div></div>` : ''}
+                ${perQuestion && index < a.current ? `<div class="callout callout-info take-preview">${UI().icon('lock')}<div><strong>Preview only</strong>This question has closed, so its answer can't be changed.</div></div>` : ''}
                 <div class="take-q-meta">
                     <span class="take-q-count">Question ${index + 1} of ${n}</span>
                     ${UI().typeChip(q.type)}
                     <span class="text-muted">${esc(q.category)}</span>
                     <span class="take-q-marks">${q.marks} mark${q.marks == 1 ? '' : 's'}</span>
                 </div>
-                <div class="take-q-text">${q.question}</div>
+                <div class="take-q-text">${safe(q.question)}</div>
                 ${answerHtml}
                 <div class="take-q-footer">${footer}</div>`;
-            this.renderNav(attempt);
+            this.renderNav();
             typeset($('take-question'));
             const text = $('take-text');
-            if (text && editable && !given) text.focus({ preventScroll: true });
+            if (text && editable && !isAnswered(given)) text.focus({ preventScroll: true });
         },
 
-        renderNav: function(attempt) {
-            const s = this.session;
-            const perQuestion = s.settings.timerMode === 'question';
-            const viewing = perQuestion ? Math.min(attempt.view, attempt.current) : attempt.view;
-            $('take-nav').innerHTML = attempt.order.map((qid, i) => {
-                const answered = attempt.answers[qid] != null && attempt.answers[qid] !== '';
-                const locked = perQuestion && i > attempt.current;
-                const closed = perQuestion && i < attempt.current;
+        renderNav: function() {
+            if (!$('take-nav') || !this.st) return;
+            const a = this.st.attempt;
+            const perQuestion = this.perQuestion();
+            const viewing = this.viewing();
+            let answeredCount = 0;
+            $('take-nav').innerHTML = a.order.map((qid, i) => {
+                const answered = isAnswered(this.answerFor(qid));
+                if (answered) answeredCount++;
+                const locked = perQuestion && i > a.current;
+                const closed = perQuestion && i < a.current;
                 const cls = [answered ? 'is-answered' : '', closed ? 'is-closed' : '', locked ? 'is-locked' : '',
-                    perQuestion && i === attempt.current ? 'is-live' : '', i === viewing ? 'is-viewing' : ''].join(' ');
+                    perQuestion && i === a.current ? 'is-live' : '', i === viewing ? 'is-viewing' : ''].join(' ');
                 const label = `Question ${i + 1}${answered ? ', answered' : ', not answered'}${closed ? ', closed' : ''}${locked ? ', not open yet' : ''}`;
                 return `<button type="button" class="take-nav-item ${cls}" data-go="${i}" ${locked ? 'disabled' : ''} aria-label="${label}" ${i === viewing ? 'aria-current="step"' : ''}>${i + 1}</button>`;
             }).join('');
-            const answeredCount = attempt.order.filter(qid => attempt.answers[qid] != null && attempt.answers[qid] !== '').length;
             $('take-legend').innerHTML = `
                 <span><i class="dot is-answered"></i> Answered (${answeredCount})</span>
-                <span><i class="dot"></i> Not answered (${attempt.order.length - answeredCount})</span>
+                <span><i class="dot"></i> Not answered (${a.order.length - answeredCount})</span>
                 ${perQuestion ? '<span><i class="dot is-locked"></i> Not open yet</span>' : ''}`;
         },
 
         tick: function() {
-            if (!$('take-root')) return stopTicker();
-            const s = this.session;
-            const before = Host().getAttempt(this.attemptId);
-            if (!before) { stopTicker(); return this.render(this.container, this.code); }
-            const { attempt, changed } = Host().checkTime(this.attemptId);
-            if (attempt.status === 'submitted') {
-                stopTicker();
-                if (changed === 'timeout') Toast().show('Time\'s up! Your answers have been submitted.', 'info');
-                return this.renderResult(attempt.id);
-            }
-            if (changed === 'question') {
-                Toast().show(`Time's up for question ${before.current + 1}.`, 'info');
-                this.renderQuestion();
-            }
-            const now = Date.now();
-            let remaining, full, label;
+            if (!$('take-root') || !this.st) return stopTicker();
+            const a = this.st.attempt, s = this.session;
+            if (a.status !== 'in_progress') return;
+            const now = this.now();
+            let remaining, full, label = '';
             if (s.settings.timerMode === 'total') {
-                remaining = attempt.deadline - now;
+                remaining = a.deadline - now;
                 full = s.settings.totalSeconds * 1000;
                 label = 'Time left';
             } else {
-                const q = Host().questionMap(s)[attempt.order[attempt.current]];
-                remaining = attempt.questionDeadline - now;
-                full = Host().questionTime(s, q) * 1000;
-                label = attempt.view < attempt.current ? `Question ${attempt.current + 1}` : '';
+                const q = this.st.questions[a.order[a.current]];
+                remaining = a.questionDeadline - now;
+                full = Math.max(5, Number(s.settings.times[q ? q.type : 'mcq']) || 30) * 1000;
+                if (this.viewing() < a.current) label = `Question ${a.current + 1}`;
             }
             const warn = s.settings.timerMode === 'total' ? remaining <= Math.min(60000, full * 0.1) : remaining <= Math.min(10000, full * 0.3);
             $('take-timer-value').textContent = clock(remaining);
@@ -420,30 +536,19 @@
             const fill = $('take-time-fill');
             fill.style.width = `${Math.max(0, Math.min(100, (remaining / full) * 100))}%`;
             fill.classList.toggle('is-warning', warn);
-        },
-
-        // Stop if the attempt was submitted (e.g. the time ran out while a dialog was open)
-        stillRunning: function() {
-            const a = Host().getAttempt(this.attemptId);
-            if (!a || a.status !== 'in_progress') { this.renderResult(this.attemptId); return null; }
-            return a;
+            // Time's up here: ask the quiz what happens next
+            if (remaining <= 0 && Date.now() >= (this.nextRefresh || 0)) this.refresh();
         },
 
         go: function(index) {
-            const a = this.stillRunning();
-            if (!a) return;
-            const limit = this.session.settings.timerMode === 'question' ? a.current : a.order.length - 1;
+            const a = this.st.attempt;
+            const limit = this.perQuestion() ? a.current : a.order.length - 1;
             if (index < 0 || index > limit) return;
-            Host().setView(this.attemptId, index);
+            this.flushText();
+            this.viewIndex = index;
             this.renderQuestion();
             $('take-question').scrollIntoView({ block: 'nearest' });
-        },
-
-        answer: function(value) {
-            const a = this.stillRunning();
-            if (!a) return;
-            const index = this.session.settings.timerMode === 'question' ? Math.min(a.view, a.current) : a.view;
-            Host().saveAnswer(this.attemptId, a.order[index], value);
+            Hosting().view(this.source, a.id, index).catch(() => {});
         },
 
         confirm: async function(options) {
@@ -451,61 +556,89 @@
             try { return await Modal().confirm(options); } finally { busy = false; }
         },
 
-        next: async function() {
-            const a = this.stillRunning();
-            if (!a) return;
-            const opened = a.current;
-            const qid = a.order[opened];
-            const isLast = opened === a.order.length - 1;
-            const unanswered = a.answers[qid] == null || a.answers[qid] === '';
-            if (isLast) {
-                const ok = await this.confirm({ title: 'Finish the quiz?', message: unanswered ? 'This question has no answer yet. Your answers will be submitted and marked.' : 'Your answers will be submitted and marked.', confirmText: 'Submit', icon: 'check' });
-                if (!ok) return;
-            } else if (unanswered) {
-                const ok = await this.confirm({ title: 'Skip this question?', message: 'You haven\'t answered it, and you won\'t be able to come back and answer it later.', confirmText: 'Skip', icon: 'alert' });
-                if (!ok) return;
+        // Run a button action that talks to the quiz, with the buttons locked meanwhile
+        act: async function(fn) {
+            if (this.acting) return;
+            this.acting = true;
+            const token = renderToken;
+            const root = $('take-root');
+            if (root) root.classList.add('is-busy');
+            try {
+                await fn();
+            } catch (err) {
+                if (token === renderToken) Toast().show(err.message, 'danger');
+            } finally {
+                if (token === renderToken) this.acting = false;
+                const r = $('take-root');
+                if (r) r.classList.remove('is-busy');
             }
-            // The question may have closed on its own while the dialog was open
-            const now = this.stillRunning();
-            if (!now) return;
-            if (now.current !== opened) { this.renderQuestion(); return; }
-            const after = Host().nextQuestion(this.attemptId);
-            if (after.status === 'submitted') { stopTicker(); return this.renderResult(after.id); }
-            this.renderQuestion();
-            this.tick();
         },
 
-        submit: async function(endedBy) {
-            const a = this.stillRunning();
-            if (!a) return;
-            const unanswered = a.order.filter(qid => a.answers[qid] == null || a.answers[qid] === '').length;
-            const ok = endedBy === 'ended'
-                ? await this.confirm({ title: 'End the quiz now?', message: `Your answers so far will be submitted and marked${unanswered ? `, and the ${unanswered} unanswered question${unanswered === 1 ? '' : 's'} will score 0` : ''}. You can't change anything after this.`, confirmText: 'End quiz', danger: true })
-                : await this.confirm({ title: 'Submit your answers?', message: unanswered ? `You have ${unanswered} unanswered question${unanswered === 1 ? '' : 's'}. You can't change anything after submitting.` : 'You can\'t change anything after submitting.', confirmText: 'Submit', icon: 'check' });
-            if (!ok || !this.stillRunning()) return;
-            stopTicker();
-            Host().submit(this.attemptId, endedBy);
-            this.renderResult(this.attemptId);
+        next: function() {
+            return this.act(async () => {
+                const a = this.st.attempt;
+                const opened = a.current;
+                const isLast = opened === a.order.length - 1;
+                const unanswered = !isAnswered(this.answerFor(a.order[opened]));
+                if (isLast) {
+                    const ok = await this.confirm({ title: 'Finish the quiz?', message: unanswered ? 'This question has no answer yet. Your answers will be submitted and marked.' : 'Your answers will be submitted and marked.', confirmText: 'Submit', icon: 'check' });
+                    if (!ok) return;
+                } else if (unanswered) {
+                    const ok = await this.confirm({ title: 'Skip this question?', message: 'You haven\'t answered it, and you won\'t be able to come back and answer it later.', confirmText: 'Skip', icon: 'alert' });
+                    if (!ok) return;
+                }
+                if (!$('take-root') || this.st.attempt.status !== 'in_progress') return;
+                const token = renderToken;
+                await this.flushText();
+                // `opened` makes sure only that question closes, even if its time ran out meanwhile
+                const state = await this.call(() => Hosting().next(this.source, this.st.attempt.id, opened));
+                if (token !== renderToken) return;
+                const change = this.apply(state);
+                this.viewIndex = state.attempt.current;
+                if (change === 'submitted') { stopTicker(); return this.renderResult(state); }
+                this.renderQuestion();
+                this.tick();
+            });
+        },
+
+        submit: function(endedBy) {
+            return this.act(async () => {
+                const a = this.st.attempt;
+                const unanswered = a.order.filter(qid => !isAnswered(this.answerFor(qid))).length;
+                const ok = endedBy === 'ended'
+                    ? await this.confirm({ title: 'End the quiz now?', message: `Your answers so far will be submitted and marked${unanswered ? `, and the ${unanswered} unanswered question${unanswered === 1 ? '' : 's'} will score 0` : ''}. You can't change anything after this.`, confirmText: 'End quiz', danger: true })
+                    : await this.confirm({ title: 'Submit your answers?', message: unanswered ? `You have ${unanswered} unanswered question${unanswered === 1 ? '' : 's'}. You can't change anything after submitting.` : 'You can\'t change anything after submitting.', confirmText: 'Submit', icon: 'check' });
+                if (!ok || !$('take-root') || this.st.attempt.status !== 'in_progress') return;
+                const token = renderToken;
+                await this.flushText();
+                const state = await this.call(() => Hosting().submit(this.source, this.st.attempt.id, endedBy));
+                if (token !== renderToken) return;
+                stopTicker();
+                this.apply(state);
+                this.renderResult(state);
+            });
         },
 
         bindRunner: function() {
             const root = $('take-root');
-            let saveTimer = null;
+            root.setAttribute('tabindex', '-1');
             root.addEventListener('click', e => {
                 if (busy) return;
                 const option = e.target.closest('[data-answer]');
                 if (option && !option.disabled) {
                     const value = option.getAttribute('data-answer');
-                    this.answer(value);
+                    const qid = this.st.attempt.order[this.viewing()];
+                    this.st.attempt.answers[qid] = value;
                     root.querySelectorAll('.take-option').forEach(b => {
                         const on = b === option;
                         b.classList.toggle('is-chosen', on);
                         b.setAttribute('aria-checked', on);
                     });
-                    const a = Host().getAttempt(this.attemptId);
-                    if (a) this.renderNav(a);
+                    this.renderNav();
+                    this.save(qid, value);
                     return;
                 }
+                if (this.acting) return;
                 const go = e.target.closest('[data-go]');
                 if (go && !go.disabled) return this.go(Number(go.getAttribute('data-go')));
                 if (e.target.closest('#take-next')) return this.next();
@@ -514,11 +647,13 @@
             });
             root.addEventListener('input', e => {
                 if (e.target.id !== 'take-text') return;
-                const value = e.target.value;
-                this.answer(value);
-                clearTimeout(saveTimer);
-                saveTimer = setTimeout(() => { const a = Host().getAttempt(this.attemptId); if (a && $('take-root')) this.renderNav(a); }, 300);
+                this.pendingText = { questionId: e.target.getAttribute('data-question'), value: e.target.value };
+                clearTimeout(this.textTimer);
+                this.textTimer = setTimeout(() => this.flushText(), SAVE_DELAY);
+                clearTimeout(this.navTimer);
+                this.navTimer = setTimeout(() => this.renderNav(), 300);
             });
+            root.addEventListener('focusout', e => { if (e.target.id === 'take-text') this.flushText(); });
             // Letter keys pick an option when not typing
             root.addEventListener('keydown', e => {
                 if (busy || e.ctrlKey || e.metaKey || e.altKey || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
@@ -527,82 +662,91 @@
                 const i = options.length === 2 && (key === 'T' || key === 'F') ? (key === 'T' ? 0 : 1) : LETTERS.indexOf(key);
                 if (i >= 0 && options[i]) { e.preventDefault(); options[i].click(); }
             });
-            root.setAttribute('tabindex', '-1');
         },
 
         // ---------------- result ----------------
-        renderResult: function(attemptId) {
+        renderResult: function(state) {
             stopTicker();
-            const attempt = Host().getAttempt(attemptId);
-            const s = Host().getSession(attempt ? attempt.sessionId : null) || this.session;
-            if (!attempt || !s) return this.render(this.container, this.code);
+            const token = renderToken;
+            const a = state.attempt, s = state.session;
+            this.session = s;
             const HostUtils = window.QuizBowl.Views.HostUtils;
-            const map = Host().questionMap(s);
-            const pct = HostUtils.percent(attempt.score, attempt.maxScore);
+            const pct = HostUtils.percent(a.score, a.maxScore);
             const counts = { correct: 0, wrong: 0, unanswered: 0, pending: 0 };
-            attempt.order.forEach(qid => {
-                const r = attempt.results[qid];
-                if (!r) return;
+            Object.values(a.results || {}).forEach(r => {
                 if (r.status === 'marked') counts[r.awarded > 0 ? 'correct' : 'wrong']++;
-                else counts[r.status]++;
+                else if (counts[r.status] != null) counts[r.status]++;
             });
             const canRetake = s.settings.allowRetake && s.open;
-            const reason = { finished: 'You finished the quiz.', ended: 'You ended the quiz early.', timeout: 'The time ran out, so your answers were submitted.' }[attempt.endedBy] || '';
+            const reason = { finished: 'You finished the quiz.', ended: 'You ended the quiz early.', timeout: 'The time ran out, so your answers were submitted.' }[a.endedBy] || '';
+            const review = state.review;
 
             this.container.innerHTML = `
                 <div class="take-result">
                     <section class="card take-card take-result-card">
                         <div class="take-score-ring" style="--p: ${pct}"><span>${pct}%</span></div>
-                        <h1>You scored ${attempt.score} out of ${attempt.maxScore}</h1>
-                        <p>${esc(s.title)} · ${esc(attempt.name)}</p>
-                        <p class="text-muted">${reason} Time taken: ${HostUtils.formatDuration((attempt.submittedAt - attempt.startedAt) / 1000)}.</p>
+                        <h1>You scored ${a.score} out of ${a.maxScore}</h1>
+                        <p>${esc(s.title)} · ${esc(a.name)}</p>
+                        <p class="text-muted">${reason} Time taken: ${HostUtils.formatDuration((a.submittedAt - a.startedAt) / 1000)}.</p>
                         <div class="take-result-stats">
                             <span class="is-correct"><strong>${counts.correct}</strong> correct</span>
                             <span class="is-wrong"><strong>${counts.wrong}</strong> wrong</span>
                             <span><strong>${counts.unanswered}</strong> not answered</span>
                             ${counts.pending ? `<span class="is-pending"><strong>${counts.pending}</strong> awaiting marking</span>` : ''}
                         </div>
-                        ${attempt.pending ? `<div class="callout callout-info">${UI().icon('info')}<div><strong>Some answers need marking</strong>The host will mark ${attempt.pending === 1 ? 'one written answer' : `${attempt.pending} written answers`}, so your score may go up.</div></div>` : ''}
+                        ${a.pending ? `<div class="callout callout-info">${UI().icon('info')}<div><strong>Some answers need marking</strong>The host will mark ${a.pending === 1 ? 'one written answer' : `${a.pending} written answers`}, so your score may go up.</div></div>` : ''}
                         <div class="take-result-actions">
                             ${canRetake ? `<button type="button" class="btn btn-primary" id="take-again">${UI().icon('reset')} Take it again</button>` : ''}
-                            <a href="#host" class="btn btn-secondary">Done</a>
+                            <a href="#dashboard" class="btn btn-secondary">Done</a>
                         </div>
                     </section>
-                    ${s.settings.showReview ? `
+                    ${review ? `
                     <section class="card">
                         <div class="card-header"><div><h2>Your answers</h2><p>What you chose and the correct answers</p></div></div>
                         <ol class="take-review">
-                            ${attempt.order.map((qid, i) => map[qid] ? this.reviewItem(map[qid], attempt, i, attempt.results[qid]) : '').join('')}
+                            ${a.order.map((qid, i) => review[qid] ? this.reviewItem(review[qid], a, i, (a.results || {})[qid]) : '').join('')}
                         </ol>
                     </section>` : ''}
                 </div>`;
             typeset(this.container);
             const again = $('take-again');
             if (again) again.addEventListener('click', () => {
+                if (token !== renderToken) return;
                 retake = true;
-                if (this.who && this.who.mode !== 'user') sessionLocal(LOCAL_KEY + s.id, null);
-                this.render(this.container, s.code);
+                if (this.source === 'local' && this.who && this.who.mode !== 'user') store('session', LOCAL_KEY + this.code, null);
+                this.render(this.container, this.code);
             });
         }
     };
 
     window.QuizBowl.Views.Take = View;
 
+    // Save a half-typed answer when the tab is hidden or closed
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden' && View.pendingText && $('take-root')) View.flushText();
+    });
+
     // Re-check the account when sign-in finishes; send people back to the quiz they were opening
     if (window.QuizBowl.Cloud) {
         window.QuizBowl.Cloud.subscribe(event => {
             if (event.type !== 'ready' && event.type !== 'auth') return;
-            const returnCode = sessionLocal(RETURN_KEY);
-            const user = window.QuizBowl.Cloud.user();
-            if (returnCode && user) {
-                sessionLocal(RETURN_KEY, null);
-                window.QuizBowl.Router.navigate('take/' + returnCode);
-                return;
-            }
-            // Waiting on the account check, or asking to sign in: draw the page again
-            if (window.QuizBowl.State.currentRoute === 'take' && (View.stage === 'loading' || View.stage === 'signin')) {
-                View.render(View.container || document.getElementById('view-container'), View.code);
-            }
+            // After the cloud has finished its own sign-in navigation
+            setTimeout(() => {
+                const user = window.QuizBowl.Cloud.user();
+                let pending = null;
+                try { pending = JSON.parse(store('local', RETURN_KEY) || 'null'); } catch (e) { pending = null; }
+                if (pending && user) {
+                    store('local', RETURN_KEY, null);
+                    if (Date.now() - pending.at < 60 * 60 * 1000) {
+                        window.QuizBowl.Router.navigate('take/' + cleanCode(pending.code));
+                        return;
+                    }
+                }
+                // Waiting on the account check, or asking to sign in: draw the page again
+                if (window.QuizBowl.State.currentRoute === 'take' && (View.stage === 'loading' || View.stage === 'signin')) {
+                    View.render(View.container || document.getElementById('view-container'), View.code);
+                }
+            }, 0);
         });
     }
 })();

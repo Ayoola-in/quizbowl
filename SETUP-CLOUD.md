@@ -1,6 +1,6 @@
 # Setting up accounts & cloud sync
 
-Quizr works fully without this. Follow these steps once to let people sign in (Google or email) and back up / sync their quizzes. It takes about 20–30 minutes and is free on Supabase's free plan.
+Quizr works fully without this. Follow these steps once to let people sign in (Google or email), back up / sync their quizzes, and host quizzes that anyone can join with a code. It takes about 20–30 minutes and is free on Supabase's free plan.
 
 You'll need:
 - your site's address, e.g. `https://your-app.vercel.app`
@@ -22,7 +22,11 @@ Wherever you see `your-app.vercel.app` below, use your real address.
 2. Open the file [`supabase/schema.sql`](supabase/schema.sql) from this repository, copy everything, paste it in, and click **Run**.
 3. You should see "Success. No rows returned". (It's safe to run again later.)
 
-This creates the `quizzes` table (one row per quiz) and the `quiz_members` table (ready for sharing with co-hosts later), with security rules so each person can only ever see and change their own quizzes.
+This creates:
+- the `quizzes` table (one row per quiz) and the `quiz_members` table (ready for sharing with co-hosts later), with security rules so each person can only ever see and change their own quizzes;
+- the `hosted_quizzes` and `hosted_attempts` tables, plus the `hosted_*` functions used to take hosted quizzes (see [How hosted quizzes work](#how-hosted-quizzes-work)).
+
+> **Already set up before hosted quizzes existed?** Run the latest `supabase/schema.sql` again the same way. It only adds what's missing and keeps your existing quizzes.
 
 ## 3. Tell Supabase where your site lives
 
@@ -102,6 +106,17 @@ This creates the `quizzes` table (one row per quiz) and the `quiz_members` table
 - **AI API keys** stay on each device and are never uploaded.
 - **Signing out** keeps the quizzes on the device.
 
+## How hosted quizzes work
+
+- The host signs in, picks questions on **Host a Quiz** and launches. The quiz (questions and answers) is saved in `hosted_quizzes`, and it gets a 6-character code.
+- Anyone with the code or link (`https://your-app.vercel.app/#take/CODE`) signs in, enters their name and takes the quiz. Their name, email and account ID are saved with the attempt.
+- People taking a quiz can't read the tables. Everything goes through the `hosted_*` database functions, which:
+  - keep time with the **server's clock**, so changing a device's clock or refreshing doesn't help;
+  - only send the questions a person may see (in per-question mode, questions that haven't opened yet aren't sent), and **never send correct answers** until the attempt is submitted (and then only if the host allows reviewing answers);
+  - mark answers on the server.
+- The host sees everyone's scores (updated every 20 seconds while the page is open), can mark written answers, and can close the quiz to stop new attempts.
+- The functions' internal helpers live in a `quizr_private` schema that the website can't call.
+
 ## Troubleshooting
 
 | Problem | Fix |
@@ -112,4 +127,6 @@ This creates the `quizzes` table (one row per quiz) and the `quiz_members` table
 | "Please confirm your email first" | Click the link in the confirmation email, or use **Resend the email**. Check spam. |
 | Confirmation emails don't arrive | The built-in sender is rate-limited. Set up custom SMTP (step 4.3). |
 | "The cloud database isn't set up yet" | Run `supabase/schema.sql` in the SQL Editor (step 2). |
+| "Hosting isn't set up in the cloud database yet" | Run the latest `supabase/schema.sql` again in the SQL Editor (step 2). |
+| Someone opens a quiz link and has to sign in first | That's expected: taking a hosted quiz needs a Quizr account, so the host knows whose score is whose. After signing in they're taken back to the quiz. |
 | Project stopped responding after a quiet week | Free Supabase projects pause after a period of inactivity. Open the Supabase dashboard and click **Restore project**. |
