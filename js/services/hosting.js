@@ -199,6 +199,12 @@
             return { saved, state: localState(L.getAttempt(attemptId)) };
         },
 
+        // Someone taking the quiz left full screen ('left' / 'reload') or came back ('back')
+        async away(source, attemptId, event) {
+            if (source === 'cloud') return CloudHost().away(attemptId, event);
+            Local().recordAway(attemptId, event);
+        },
+
         async view(source, attemptId, index) {
             if (source === 'cloud') return CloudHost().view(attemptId, index);
             Local().setView(attemptId, index);

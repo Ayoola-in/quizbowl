@@ -114,7 +114,8 @@ This creates:
   - keep time with the **server's clock**, so changing a device's clock or refreshing doesn't help;
   - only send the questions a person may see (in per-question mode, questions that haven't opened yet aren't sent), and **never send correct answers** until the attempt is submitted (and then only if the host allows reviewing answers);
   - mark answers on the server.
-- The host sees everyone's scores (updated every 20 seconds while the page is open), can mark written answers, and can close the quiz to stop new attempts.
+- The host sees everyone's scores (updated every 10 seconds while the page is open), can mark written answers, and can close the quiz to stop new attempts.
+- Leaving full screen while taking a quiz is recorded with the server's time (`away_events`) and shown to the host.
 - The functions' internal helpers live in a `quizr_private` schema that the website can't call.
 
 ## Troubleshooting

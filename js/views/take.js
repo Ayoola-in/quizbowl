@@ -97,7 +97,8 @@
      * Exam mode while a quiz is running: the sidebar, menu and header are hidden,
      * the router refuses to leave the quiz (see router.js), the browser asks before
      * closing the tab, and the quiz runs in full screen where the device allows it.
-     * Leaving full screen covers the quiz until the person goes back to full screen.
+     * Leaving full screen covers the quiz until the person goes back to full screen,
+     * and the host is told (each time away is saved with the attempt).
      * (A web page can't stop someone closing the browser; the clock keeps running
      * and the attempt resumes when they come back.)
      */
@@ -105,14 +106,23 @@
         route: null,
         ownFullscreen: false,
         noFullscreen: false,     // full screen was refused here; don't insist on it
+        report: null,            // sends 'left' | 'reload' | 'back' to the attempt
+        armed: false,            // been in full screen (or came back to a running quiz), so leaving counts
+        awayOpen: false,         // reported leaving, not yet back
+        resumed: false,          // this page opened on a quiz already running (reloaded or reopened)
 
         active() {
             return !!this.route;
         },
 
-        lock() {
+        lock(report, resumed) {
             const route = (location.hash.substring(1) || '').replace(/^\//, '');
             this.route = route;
+            this.report = report || null;
+            this.resumed = !!resumed;
+            // Full screen usually starts with the Start click, before the quiz is on screen
+            this.armed = !!resumed || !!document.fullscreenElement;
+            this.awayOpen = false;
             window.QuizBowl.State.examLock = route;
             // Remembered for this tab, so a reload locks the app again before anything else shows (see app.js)
             store('session', EXAM_KEY, route);
@@ -126,6 +136,8 @@
         unlock() {
             if (!this.route && !window.QuizBowl.State.examLock) return;
             this.route = null;
+            this.report = null;
+            this.awayOpen = false;
             window.QuizBowl.State.examLock = null;
             store('session', EXAM_KEY, null);
             document.body.classList.remove('exam-mode');
@@ -138,7 +150,7 @@
             const el = document.documentElement;
             if (!document.fullscreenEnabled || !el.requestFullscreen || document.fullscreenElement || this.noFullscreen) return Promise.resolve();
             return el.requestFullscreen({ navigationUI: 'hide' })
-                .then(() => { this.ownFullscreen = true; })
+                .then(() => { this.ownFullscreen = true; if (this.active()) this.armed = true; })
                 .catch(() => { this.noFullscreen = true; })
                 .then(() => this.updateGate());
         },
@@ -148,8 +160,18 @@
         },
 
         updateGate() {
+            const away = this.needsFullscreen();
             const gate = $('take-fs-gate');
-            if (gate) gate.hidden = !this.needsFullscreen();
+            if (gate) gate.hidden = !away;
+            if (!this.active() || !this.armed || !this.report) return;
+            if (away && !this.awayOpen) {
+                this.awayOpen = true;
+                this.report(this.resumed ? 'reload' : 'left');
+                this.resumed = false;
+            } else if (!away && this.awayOpen) {
+                this.awayOpen = false;
+                this.report('back');
+            }
         }
     };
 
@@ -160,7 +182,7 @@
     });
     document.addEventListener('fullscreenchange', () => {
         if (!document.fullscreenElement) Exam.ownFullscreen = false;
-        else if (Exam.active()) Exam.ownFullscreen = true;
+        else if (Exam.active()) { Exam.ownFullscreen = true; Exam.armed = true; }
         Exam.updateGate();
     });
 
@@ -488,7 +510,8 @@
                         </aside>
                     </div>
                 </div>`;
-            Exam.lock();
+            const attemptId = a.id, source = this.source;
+            Exam.lock(event => Hosting().away(source, attemptId, event).catch(() => {}), resumed);
             this.renderQuestion();
             this.bindRunner();
             this.tick();

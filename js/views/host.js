@@ -21,7 +21,7 @@
     const UNCATEGORISED = 'Uncategorised';
     const PREFS_KEY = 'host_prefs';
     const ENDED = { finished: 'Finished', ended: 'Ended early', timeout: 'Time ran out' };
-    const REFRESH_MS = 20000;
+    const REFRESH_MS = 10000;
 
     const UI = () => window.QuizBowl.Utils.UI;
     const Hosting = () => window.QuizBowl.Services.Hosting;
@@ -67,6 +67,22 @@
         if (a.status !== 'submitted') return '<span class="badge badge-partial">In progress</span>';
         return `<span class="badge ${a.endedBy === 'finished' ? 'badge-correct' : 'badge-answered'}">${ENDED[a.endedBy] || 'Submitted'}</span>`;
     }
+
+    // Times out of full screen while taking the quiz: { count, awayNow, last }
+    function awayInfo(a) {
+        const events = a.away || [];
+        const last = events[events.length - 1] || null;
+        return { count: events.length, awayNow: a.status !== 'submitted' && !!last && last.back == null, last };
+    }
+
+    function awayBadge(a) {
+        const info = awayInfo(a);
+        if (info.awayNow) return '<span class="badge badge-wrong host-away">Out of full screen now</span>';
+        if (info.count) return `<span class="badge badge-partial host-away" title="Times this person left full screen during the quiz">Left full screen ${info.count}×</span>`;
+        return '';
+    }
+
+    const awayWhat = e => e.reason === 'reload' ? 'Left the quiz page (reloaded or closed it)' : 'Left full screen';
 
     function loading(container, text) {
         container.innerHTML = `<div class="card host-loading">${UI().icon('loader', 'spin')} ${esc(text)}</div>`;
@@ -670,9 +686,10 @@
 
     function downloadCsv(session, attempts) {
         const done = attempts.filter(a => a.status === 'submitted').sort((a, b) => b.score - a.score || a.submittedAt - b.submittedAt);
-        const rows = [['Rank', 'Name', 'Email', 'Score', 'Out of', 'Percent', 'Awaiting marking', 'Time taken (sec)', 'How it ended', 'Started', 'Submitted']];
+        const rows = [['Rank', 'Name', 'Email', 'Score', 'Out of', 'Percent', 'Awaiting marking', 'Time taken (sec)', 'How it ended', 'Times left full screen', 'Started', 'Submitted']];
         done.forEach((a, i) => rows.push([i + 1, a.name, a.email, a.score, a.maxScore, percent(a.score, a.maxScore), a.pending || 0,
-            Math.round((a.submittedAt - a.startedAt) / 1000), ENDED[a.endedBy] || '', new Date(a.startedAt).toISOString(), new Date(a.submittedAt).toISOString()]));
+            Math.round((a.submittedAt - a.startedAt) / 1000), ENDED[a.endedBy] || '', awayInfo(a).count,
+            new Date(a.startedAt).toISOString(), new Date(a.submittedAt).toISOString()]));
         const blob = new Blob(['﻿' + rows.map(r => r.map(csvCell).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
@@ -728,6 +745,21 @@
             }
         },
 
+        // Pop up a note when someone leaves full screen while the host has this page open
+        notifyAway: function(session, attempts) {
+            const counts = {};
+            attempts.forEach(a => { counts[a.id] = awayInfo(a).count; });
+            if (this.awaySeen && this.awaySeen.session === session.id) {
+                attempts.forEach(a => {
+                    if (counts[a.id] > (this.awaySeen.counts[a.id] || 0)) {
+                        const info = awayInfo(a);
+                        Toast().show(`${a.name} ${info.last && info.last.reason === 'reload' ? 'left the quiz page' : 'left full screen'}.`, 'warning');
+                    }
+                });
+            }
+            this.awaySeen = { session: session.id, counts };
+        },
+
         draw: function(container, session, attempts) {
             const token = renderToken;
             const st = session.settings;
@@ -740,13 +772,16 @@
             const questions = session.questions || [];
             const typeCounts = TYPES.map(t => [t, questions.filter(q => q.type === t).length]).filter(([, n]) => n);
             const link = shareLink(session.code);
+            const leavers = attempts.filter(a => awayInfo(a).count);
+            const awayNow = attempts.filter(a => awayInfo(a).awayNow);
+            this.notifyAway(session, attempts);
 
             const row = (a, rank) => {
                 const time = a.status === 'submitted' ? formatDuration((a.submittedAt - a.startedAt) / 1000) : '—';
                 return `
                 <tr class="host-row" data-attempt="${esc(a.id)}" tabindex="0">
                     <td class="host-rank">${rank || ''}</td>
-                    <td><strong>${esc(a.name)}</strong><small class="host-email">${esc(a.email || 'Not signed in')}</small></td>
+                    <td><strong>${esc(a.name)}</strong> ${awayBadge(a)}<small class="host-email">${esc(a.email || 'Not signed in')}</small></td>
                     <td class="host-score">${a.status === 'submitted' ? `<strong>${a.score}</strong> / ${a.maxScore} <small>${percent(a.score, a.maxScore)}%</small>` : '—'}
                         ${a.pending ? `<span class="badge badge-partial">${a.pending} to mark</span>` : ''}</td>
                     <td>${time}</td>
@@ -808,6 +843,8 @@
                                 ${done.length ? `<button type="button" class="btn btn-secondary btn-sm" id="hs-csv">${UI().icon('download')} Download CSV</button>` : ''}
                             </div>
                         </div>
+                        ${awayNow.length ? `<div class="callout callout-danger host-callout">${UI().icon('alert')}<div><strong>${awayNow.length === 1 ? `${esc(awayNow[0].name)} is` : `${awayNow.length} people are`} out of full screen right now</strong>They can't see the quiz until they go back to full screen. Their time is still running.</div></div>` : ''}
+                        ${leavers.length ? `<div class="callout callout-warning host-callout">${UI().icon('maximize')}<div><strong>${leavers.length} ${leavers.length === 1 ? 'person' : 'people'} left full screen during the quiz</strong>Marked in the list below. Open a score to see when and for how long.</div></div>` : ''}
                         ${pending ? `<div class="callout callout-warning host-callout">${UI().icon('alert')}<div><strong>${pending} written answer${pending === 1 ? '' : 's'} to mark</strong>Open a score to mark them. Totals update as you go.</div></div>` : ''}
                         ${attempts.length ? `
                         <div class="table-wrap">
@@ -818,7 +855,7 @@
                                     ${live.map(a => row(a, 0)).join('')}
                                 </tbody>
                             </table>
-                        </div>` : UI().emptyState('award', 'No scores yet', `Scores appear here as soon as someone submits the quiz${cloud ? '. This page updates by itself' : ''}.`)}
+                        </div>` : UI().emptyState('award', 'No scores yet', `Scores appear here as soon as someone submits the quiz${cloud ? '. This page updates by itself, and tells you if someone leaves full screen' : ''}.`)}
                     </section>
                 </div>
             `;
@@ -911,9 +948,23 @@
                             <div><dt>Time taken</dt><dd>${formatDuration((attempt.submittedAt - attempt.startedAt) / 1000)}</dd></div>
                             <div><dt>How it ended</dt><dd>${ENDED[attempt.endedBy] || 'Submitted'}</dd></div>
                             <div><dt>Started</dt><dd>${formatDate(attempt.startedAt)}</dd></div>
+                            <div><dt>Left full screen</dt><dd>${(attempt.away || []).length ? `${attempt.away.length}×` : 'Never'}</dd></div>
                         </dl>
                     </section>` : `
                     <div class="callout callout-info host-callout">${UI().icon('info')}<div><strong>This attempt is still in progress</strong>Its score appears when it's submitted or its time runs out.</div></div>`}
+                    ${(attempt.away || []).length ? `
+                    <section class="card">
+                        <div class="card-header"><div><h2>Full screen</h2><p>Left full screen ${attempt.away.length} time${attempt.away.length === 1 ? '' : 's'} during the quiz</p></div></div>
+                        <ul class="host-away-list">
+                            ${attempt.away.map(e => `
+                                <li>
+                                    ${UI().icon(e.back == null ? 'alert' : 'maximize')}
+                                    <span><strong>${awayWhat(e)}</strong> at ${new Date(e.at).toLocaleTimeString()}</span>
+                                    <span class="text-muted">${e.back != null ? `back after ${formatDuration((e.back - e.at) / 1000)}`
+                                        : submitted ? 'didn\'t come back before the quiz ended' : 'not back yet'}</span>
+                                </li>`).join('')}
+                        </ul>
+                    </section>` : ''}
                     <section class="card">
                         <div class="card-header"><div><h2>Answers</h2><p>${submitted ? 'Change any mark if needed; written answers that didn\'t match are waiting for you.' : 'Answers so far'}</p></div></div>
                         <ol class="take-review">

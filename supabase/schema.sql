@@ -784,6 +784,46 @@ begin
 end;
 $$;
 
+-- Times the person left full screen while taking the quiz, for the host:
+-- [{ "at": ms, "back": ms or null, "reason": "left" | "reload" }]
+alter table public.hosted_attempts add column if not exists away_events jsonb not null default '[]'::jsonb;
+
+-- Record leaving full screen ('left', or 'reload' when the quiz page was reopened) and coming back ('back')
+create or replace function public.hosted_away(p_attempt uuid, p_event text)
+returns void language plpgsql security definer set search_path = public as $$
+declare
+    v_a public.hosted_attempts;
+    v_events jsonb;
+    v_n int;
+    v_open boolean;
+begin
+    perform quizr_private.own_attempt(p_attempt);
+    perform quizr_private.tick(p_attempt);
+    select * into v_a from public.hosted_attempts where id = p_attempt for update;
+    if v_a.status <> 'in_progress' then return; end if;
+    v_events := coalesce(v_a.away_events, '[]'::jsonb);
+    v_n := jsonb_array_length(v_events);
+    v_open := v_n > 0 and jsonb_typeof(v_events -> (v_n - 1) -> 'back') = 'null';
+    if p_event in ('left', 'reload') then
+        -- Full screen often ends while a page reloads; the reopened page then says why
+        if v_open and p_event = 'reload' then
+            v_events := jsonb_set(v_events, array[(v_n - 1)::text, 'reason'], '"reload"'::jsonb);
+            update public.hosted_attempts set away_events = v_events where id = p_attempt;
+            return;
+        end if;
+        if v_open or v_n >= 200 then return; end if;
+        v_events := v_events || jsonb_build_array(jsonb_build_object(
+            'at', quizr_private.ms(now()), 'back', null, 'reason', p_event));
+    elsif p_event = 'back' then
+        if not v_open then return; end if;
+        v_events := jsonb_set(v_events, array[(v_n - 1)::text, 'back'], to_jsonb(quizr_private.ms(now())));
+    else
+        raise exception 'Unknown event.';
+    end if;
+    update public.hosted_attempts set away_events = v_events where id = p_attempt;
+end;
+$$;
+
 -- Host: bring attempts up to date (finish ones whose time has run out)
 create or replace function public.hosted_refresh(p_quiz uuid)
 returns void language plpgsql security definer set search_path = public as $$
@@ -873,6 +913,7 @@ revoke all on function public.hosted_next(uuid, int) from public, anon;
 revoke all on function public.hosted_submit(uuid, text) from public, anon;
 revoke all on function public.hosted_refresh(uuid) from public, anon;
 revoke all on function public.hosted_set_mark(uuid, text, numeric) from public, anon;
+revoke all on function public.hosted_away(uuid, text) from public, anon;
 grant execute on function public.hosted_join(text) to authenticated;
 grant execute on function public.hosted_start(text, text) to authenticated;
 grant execute on function public.hosted_state(uuid) to authenticated;
@@ -882,3 +923,4 @@ grant execute on function public.hosted_next(uuid, int) to authenticated;
 grant execute on function public.hosted_submit(uuid, text) to authenticated;
 grant execute on function public.hosted_refresh(uuid) to authenticated;
 grant execute on function public.hosted_set_mark(uuid, text, numeric) to authenticated;
+grant execute on function public.hosted_away(uuid, text) to authenticated;

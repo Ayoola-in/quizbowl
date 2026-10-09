@@ -17,7 +17,8 @@
  * Attempt: { id, sessionId, name, userId, email, startedAt, status: 'in_progress'|'submitted',
  *            order: [questionId], optionOrder: { questionId: [letter] }, answers: { questionId: value },
  *            current, questionDeadline (per-question mode), deadline (total mode), view,
- *            submittedAt, endedBy: 'finished'|'ended'|'timeout', results, score, maxScore, pending }
+ *            submittedAt, endedBy: 'finished'|'ended'|'timeout', results, score, maxScore, pending,
+ *            away: [{ at, back, reason: 'left'|'reload' }] (times out of full screen) }
  *   results: { questionId: { status: 'correct'|'wrong'|'pending'|'marked'|'unanswered', awarded, marks } }
  */
 (function() {
@@ -419,6 +420,24 @@
             return this._update(attemptId, a => {
                 delete a.results[questionId];
                 Object.assign(a, score(session, a));
+            });
+        },
+
+        // Leaving full screen ('left', or 'reload' when the page was reopened) and coming back ('back')
+        recordAway(attemptId, event, now = Date.now()) {
+            const attempt = this.getAttempt(attemptId);
+            if (!attempt || attempt.status !== 'in_progress') return attempt;
+            return this._update(attemptId, a => {
+                const events = a.away || (a.away = []);
+                const last = events[events.length - 1];
+                if (event === 'left' || event === 'reload') {
+                    // Full screen often ends while a page reloads; the reopened page then says why
+                    if (last && last.back == null && event === 'reload') { last.reason = 'reload'; return; }
+                    if ((last && last.back == null) || events.length >= 200) return;
+                    events.push({ at: now, back: null, reason: event });
+                } else if (event === 'back' && last && last.back == null) {
+                    last.back = now;
+                }
             });
         },
 

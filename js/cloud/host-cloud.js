@@ -75,7 +75,8 @@
             results: row.results || {},
             score: num(row.score),
             maxScore: num(row.max_score),
-            pending: row.pending || 0
+            pending: row.pending || 0,
+            away: row.away_events || []
         };
     }
 
@@ -193,6 +194,10 @@
         async answer(attemptId, questionId, value) {
             const data = await rpc('hosted_answer', { p_attempt: attemptId, p_question: questionId, p_value: value == null ? '' : String(value) });
             return { saved: data.saved, state: cleanState(data.state) };
+        },
+
+        async away(attemptId, event) {
+            await rpc('hosted_away', { p_attempt: attemptId, p_event: event });
         },
 
         async view(attemptId, index) {
