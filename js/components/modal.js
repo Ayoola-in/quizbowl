@@ -56,7 +56,7 @@
             overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) cancel(); });
 
             overlay.addEventListener('keydown', (e) => {
-                // Keep modal keys from reaching global shortcuts (e.g. Esc exits display mode)
+                // Keep modal keys from reaching global shortcuts (e.g. Esc closes the mobile menu)
                 e.stopPropagation();
                 if (e.key === 'Escape') {
                     e.preventDefault();

@@ -336,8 +336,6 @@ input[type="checkbox"] {
     line-height: 1.65;
 }
 
-.display-mode-active .qd-question { font-size: 2rem; }
-
 .qd-options {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));

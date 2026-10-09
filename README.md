@@ -7,7 +7,6 @@ A web app for running any kind of quiz competition (school, church, community, o
 - **MathJax Integration**: Render complex LaTeX mathematical equations.
 - **Dynamic Question Types**: MCQ, Calculation, Theory, True/False.
 - **State Management**: Track available/answered questions, team scores, and competition history.
-- **Display Mode**: A full-screen projector-friendly mode to hide administrator controls.
 - **Fast Client-Side Search**: Instantly find questions by keywords, topic, or ID.
 
 ## Running Locally
@@ -104,16 +103,11 @@ On a copy of Quizr without accounts set up, hosting still works, but quizzes and
 ## Adding Questions
 Click **Questions** on the sidebar, then click **+ Add Question**. Enter the question details. You can use standard LaTeX syntax wrapped in `$$` for block math or `\\(` `\\)` for inline math.
 
-## Display Mode
-Click the **Display Mode** button in the top right corner. This will expand the main view and hide the sidebar, header, and administrative scoring controls, making it perfect for projecting onto a screen for the audience.
-Press `ESC` to exit Display Mode.
-
 ## Keyboard Shortcuts
 | Where | Key | Action |
 |---|---|---|
 | Admin | `Ctrl+K` | Focus question search |
 | Admin | `Alt+N` | Add a new question |
-| Admin | `Esc` | Exit Display Mode |
 | Public Display | `Enter` | Show the typed question number |
 | Public Display | `A` | Reveal / hide the answer |
 | Public Display | `F` | Toggle fullscreen |

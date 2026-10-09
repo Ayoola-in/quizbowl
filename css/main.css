@@ -605,32 +605,9 @@ textarea.form-control {
 
 .table .num { text-align: right; font-variant-numeric: tabular-nums; }
 
-/* Display Mode Styles */
-.display-mode-active .sidebar,
-.display-mode-active .top-header .header-search,
-.display-mode-active .top-header .menu-toggle,
-.display-mode-active .admin-controls,
-.display-mode-active .page-actions,
-.display-mode-active .back-link,
-.display-mode-active .hide-in-display {
-    display: none !important;
-}
-
-.display-mode-active .view-container {
-    padding: 3rem 5rem;
-    font-size: 1.35rem;
-}
-
-.display-mode-active .top-header {
-    justify-content: flex-end;
-    border-bottom: none;
-    background: transparent;
-}
-
 /* Responsive */
 @media (max-width: 960px) {
     .view-container { padding: var(--spacing-lg); }
-    .display-mode-active .view-container { padding: 2rem; }
     .header-search kbd { display: none; }
     .header-search input { padding-right: 0.75rem; }
     .btn-label-optional { display: none; }

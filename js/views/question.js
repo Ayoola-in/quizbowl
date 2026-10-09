@@ -83,7 +83,7 @@
                         ${optionsHtml}
                     </div>
 
-                    <!-- Administrator View (Hidden in Display Mode) -->
+                    <!-- Administrator View -->
                     <div class="admin-controls qd-panels">
                         <section class="card">
                             <div class="card-header">

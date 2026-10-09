@@ -13,7 +13,6 @@ window.QuizBowl = {
     Utils: {},
     State: {
         currentRoute: 'dashboard',
-        isDisplayMode: false,
         searchQuery: '',
         // Route of a quiz being taken in this tab: the rest of the app is locked until it ends (views/take.js)
         examLock: (function() {
@@ -112,8 +111,6 @@ window.QuizBowl.App = {
 // Keyboard Shortcuts and Global UI Handlers
 document.addEventListener('DOMContentLoaded', () => {
     const appContainer = document.getElementById('app-container');
-    const btnDisplayMode = document.getElementById('btn-display-mode');
-    const displayModeLabel = document.getElementById('display-mode-label');
     const searchInput = document.getElementById('global-search');
 
     // Admin-only page elements; the public display shares this file
@@ -136,11 +133,8 @@ document.addEventListener('DOMContentLoaded', () => {
             window.QuizBowl.Router.navigate('add-question');
         }
 
-        // Esc -> Exit Display Mode / close mobile nav
-        if (e.key === 'Escape') {
-            if (window.QuizBowl.State.isDisplayMode) toggleDisplayMode(false);
-            closeNav();
-        }
+        // Esc -> close mobile nav
+        if (e.key === 'Escape') closeNav();
     });
 
     // Global search: routes to the question bank and filters as you type
@@ -205,42 +199,6 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btn-menu').addEventListener('click', () => appContainer.classList.toggle('sidebar-open'));
     document.getElementById('sidebar-backdrop').addEventListener('click', closeNav);
     window.addEventListener('hashchange', closeNav);
-
-    // Display Mode Toggle
-    if (btnDisplayMode) {
-        btnDisplayMode.addEventListener('click', () => {
-            toggleDisplayMode(!window.QuizBowl.State.isDisplayMode);
-        });
-    }
-
-    // Keep display mode in sync when the browser exits fullscreen on its own (e.g. user presses Esc)
-    document.addEventListener('fullscreenchange', () => {
-        if (!document.fullscreenElement && window.QuizBowl.State.isDisplayMode) {
-            toggleDisplayMode(false);
-        }
-    });
-
-    function toggleDisplayMode(enable) {
-        window.QuizBowl.State.isDisplayMode = enable;
-
-        if (enable) {
-            appContainer.classList.add('display-mode-active');
-            displayModeLabel.textContent = 'Exit Display Mode';
-            btnDisplayMode.classList.replace('btn-primary', 'btn-secondary');
-            // Try to fullscreen
-            if (document.documentElement.requestFullscreen) {
-                document.documentElement.requestFullscreen().catch(err => console.log(err));
-            }
-        } else {
-            appContainer.classList.remove('display-mode-active');
-            displayModeLabel.textContent = 'Display Mode';
-            btnDisplayMode.classList.replace('btn-secondary', 'btn-primary');
-            // Exit fullscreen
-            if (document.fullscreenElement) {
-                document.exitFullscreen().catch(err => console.log(err));
-            }
-        }
-    }
 });
 
 console.log('Quizr Application Initialized');
